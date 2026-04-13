@@ -238,6 +238,8 @@ def handler(event: dict, context) -> dict:
                            d.id as driver_id, d.full_name as driver_name,
                            c.id as conductor_id, c.full_name as conductor_name,
                            se.fuel_spent,
+                           se.revenue_cash, se.revenue_cashless,
+                           se.revenue_total, se.ticket_price, se.tickets_sold,
                            t.id as terminal_id, t.number as terminal_number,
                            t.name as terminal_name, t.organization as terminal_org
                     FROM schedule_entries se
@@ -259,8 +261,9 @@ def handler(event: dict, context) -> dict:
 
                 if method == "POST":
                     cur.execute("""
-                        INSERT INTO schedule_entries (work_date, route_id, graph_number, bus_id, driver_id, conductor_id, terminal_id, fuel_spent)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+                        INSERT INTO schedule_entries (work_date, route_id, graph_number, bus_id, driver_id, conductor_id, terminal_id, fuel_spent,
+                          revenue_cash, revenue_cashless, revenue_total, ticket_price, tickets_sold)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
                     """, (
                         body.get("work_date"),
                         body.get("route_id"),
@@ -270,6 +273,11 @@ def handler(event: dict, context) -> dict:
                         body.get("conductor_id") or None,
                         body.get("terminal_id") or None,
                         body.get("fuel_spent") or None,
+                        body.get("revenue_cash") or None,
+                        body.get("revenue_cashless") or None,
+                        body.get("revenue_total") or None,
+                        body.get("ticket_price") or None,
+                        body.get("tickets_sold") or None,
                     ))
                     conn.commit()
                     new_id = cur.fetchone()["id"]
@@ -279,7 +287,8 @@ def handler(event: dict, context) -> dict:
                 if method == "PUT":
                     cur.execute("""
                         UPDATE schedule_entries
-                        SET bus_id=%s, driver_id=%s, conductor_id=%s, graph_number=%s, terminal_id=%s, fuel_spent=%s
+                        SET bus_id=%s, driver_id=%s, conductor_id=%s, graph_number=%s, terminal_id=%s, fuel_spent=%s,
+                            revenue_cash=%s, revenue_cashless=%s, revenue_total=%s, ticket_price=%s, tickets_sold=%s
                         WHERE id=%s
                     """, (
                         body.get("bus_id") or None,
@@ -288,6 +297,11 @@ def handler(event: dict, context) -> dict:
                         body.get("graph_number") or None,
                         body.get("terminal_id") or None,
                         body.get("fuel_spent") or None,
+                        body.get("revenue_cash") or None,
+                        body.get("revenue_cashless") or None,
+                        body.get("revenue_total") or None,
+                        body.get("ticket_price") or None,
+                        body.get("tickets_sold") or None,
                         body.get("id")
                     ))
                     conn.commit()
