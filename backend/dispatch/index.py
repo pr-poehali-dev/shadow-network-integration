@@ -111,6 +111,27 @@ def handler(event: dict, context) -> dict:
                 rows = list(cur.fetchall())
                 return ok(rows)
 
+    # --- SETTINGS ---
+    if resource == "settings":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    cur.execute("SELECT key, value FROM settings")
+                    rows = {r["key"]: r["value"] for r in cur.fetchall()}
+                    return ok(rows)
+                if method == "PUT":
+                    key = body.get("key")
+                    value = body.get("value")
+                    if not key or value is None:
+                        return err("key and value required")
+                    cur.execute("""
+                        INSERT INTO settings (key, value, updated_at) VALUES (%s, %s, NOW())
+                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                        RETURNING *
+                    """, (key, str(value)))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
     # --- TERMINALS ---
     if resource == "terminals":
         with get_conn() as conn:

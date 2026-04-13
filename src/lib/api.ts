@@ -28,6 +28,10 @@ async function docsReq(method: string, resource: string, body?: object, params?:
 }
 
 export const api = {
+  // Settings
+  getSettings: () => req("GET", "settings"),
+  updateSetting: (key: string, value: string) => req("PUT", "settings", { key, value }),
+
   // Terminals
   getTerminals: () => req("GET", "terminals"),
   createTerminal: (data: { number: string; name: string; organization: string }) => req("POST", "terminals", data),

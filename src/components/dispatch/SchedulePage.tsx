@@ -134,6 +134,13 @@ export default function SchedulePage() {
   const [addGraphNum, setAddGraphNum] = useState<string>("");
   const [adding, setAdding] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [ticketPrice, setTicketPrice] = useState(33);
+
+  useEffect(() => {
+    api.getSettings().then(s => {
+      if (s?.ticket_price) setTicketPrice(Number(s.ticket_price));
+    });
+  }, []);
 
   useEffect(() => {
     Promise.all([api.getRoutes(), api.getBuses(), api.getDrivers(), api.getConductors(), api.getTerminals()])
@@ -326,8 +333,7 @@ export default function SchedulePage() {
                       const isExpanded = expandedId === entry.id;
                       const totalRev = (entry.revenue_cash ?? 0) + (entry.revenue_cashless ?? 0);
                       const displayTotal = entry.revenue_total ?? (totalRev || null);
-                      const tPrice = entry.ticket_price ?? 33;
-                      const calcTickets = displayTotal ? Math.floor(displayTotal / tPrice) : null;
+                      const calcTickets = displayTotal ? Math.floor(displayTotal / ticketPrice) : null;
 
                       return (
                         <tr key={entry.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition-colors align-top">
@@ -400,11 +406,10 @@ export default function SchedulePage() {
                                       const cash = v ? Number(v) : null;
                                       const cashless = entry.revenue_cashless ?? 0;
                                       const total = (cash ?? 0) + cashless;
-                                      const tp = entry.ticket_price ?? 33;
                                       handleUpdate(entry, {
                                         revenue_cash: cash,
                                         revenue_total: total || null,
-                                        tickets_sold: total ? Math.floor(total / tp) : null,
+                                        tickets_sold: total ? Math.floor(total / ticketPrice) : null,
                                       });
                                     }} />
                                 </div>
@@ -415,11 +420,10 @@ export default function SchedulePage() {
                                       const cashless = v ? Number(v) : null;
                                       const cash = entry.revenue_cash ?? 0;
                                       const total = cash + (cashless ?? 0);
-                                      const tp = entry.ticket_price ?? 33;
                                       handleUpdate(entry, {
                                         revenue_cashless: cashless,
                                         revenue_total: total || null,
-                                        tickets_sold: total ? Math.floor(total / tp) : null,
+                                        tickets_sold: total ? Math.floor(total / ticketPrice) : null,
                                       });
                                     }} />
                                 </div>
@@ -429,20 +433,8 @@ export default function SchedulePage() {
                                     <span className="font-bold text-neutral-900 text-sm">{fmtMoney(displayTotal)}</span>
                                   </div>
                                 </div>
-                                <div>
-                                  <label className="text-xs text-neutral-500 block mb-0.5">Цена билета, ₽</label>
-                                  <NumInput value={entry.ticket_price ?? 33} placeholder="33"
-                                    onSave={v => {
-                                      const tp = v ? Number(v) : 33;
-                                      const total = entry.revenue_total ?? (((entry.revenue_cash ?? 0) + (entry.revenue_cashless ?? 0)) || null);
-                                      handleUpdate(entry, {
-                                        ticket_price: tp,
-                                        tickets_sold: total ? Math.floor(total / tp) : null,
-                                      });
-                                    }} />
-                                </div>
                                 <div className="flex justify-between items-center text-xs text-neutral-600 pt-1 border-t border-neutral-200">
-                                  <span>Продано билетов:</span>
+                                  <span>Продано билетов <span className="text-neutral-400">(по {ticketPrice} ₽)</span>:</span>
                                   <span className="font-bold text-neutral-900 text-sm">{calcTickets ?? "—"}</span>
                                 </div>
                               </div>

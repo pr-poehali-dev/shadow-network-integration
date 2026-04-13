@@ -5,9 +5,10 @@ import SchedulePage from "@/components/dispatch/SchedulePage";
 import SummaryPage from "@/components/dispatch/SummaryPage";
 import BusDocsPage from "@/components/dispatch/BusDocsPage";
 import RoutesPage from "@/components/dispatch/RoutesPage";
+import SettingsPage from "@/components/dispatch/SettingsPage";
 import Icon from "@/components/ui/icon";
 
-type Tab = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors" | "terminals";
+type Tab = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors" | "terminals" | "settings";
 
 const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: "schedule", label: "Расписание", icon: "CalendarDays" },
@@ -18,6 +19,7 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: "drivers", label: "Водители", icon: "User" },
   { id: "conductors", label: "Кондукторы", icon: "Users" },
   { id: "terminals", label: "Терминалы", icon: "MonitorSmartphone" },
+  { id: "settings", label: "Настройки", icon: "Settings" },
 ];
 
 export default function Dispatch() {
@@ -148,6 +150,8 @@ export default function Dispatch() {
               )}
             />
           )}
+
+          {tab === "settings" && <SettingsPage />}
         </main>
       </div>
     </div>
