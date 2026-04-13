@@ -19,9 +19,7 @@ interface RouteGraph {
   notes: string | null;
 }
 
-interface Route { id: number; number: string; name: string; }
-
-const GRAPH_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+interface Route { id: number; number: string; name: string; max_graphs?: number; }
 
 function fmtTime(t: string | null) {
   if (!t) return "—";
@@ -248,6 +246,8 @@ export default function RouteGraphs({ route }: RouteGraphsProps) {
 
   useEffect(() => { load(); }, [route.id, workDate]);
 
+  const maxGraphs = route.max_graphs ?? 10;
+  const graphNumbers = Array.from({ length: maxGraphs }, (_, i) => i + 1);
   const getGraph = (num: number) => graphs.find(g => g.graph_number === num) ?? null;
 
   return (
@@ -282,7 +282,7 @@ export default function RouteGraphs({ route }: RouteGraphsProps) {
               </tr>
             </thead>
             <tbody>
-              {GRAPH_NUMBERS.map(num => (
+              {graphNumbers.map(num => (
                 <GraphRow
                   key={`${route.id}-${num}-${workDate}`}
                   route={route}

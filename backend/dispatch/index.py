@@ -48,19 +48,24 @@ def handler(event: dict, context) -> dict:
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 if method == "GET":
-                    cur.execute("SELECT * FROM routes ORDER BY number")
+                    cur.execute("SELECT * FROM routes ORDER BY organization NULLS LAST, number")
                     return ok(list(cur.fetchall()))
                 if method == "POST":
                     cur.execute(
-                        "INSERT INTO routes (number, name) VALUES (%s, %s) RETURNING *",
-                        (body.get("number"), body.get("name", ""))
+                        "INSERT INTO routes (number, name, organization, max_graphs) VALUES (%s, %s, %s, %s) RETURNING *",
+                        (body.get("number"), body.get("name", ""),
+                         body.get("organization") or None,
+                         int(body.get("max_graphs") or 10))
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
                 if method == "PUT":
                     cur.execute(
-                        "UPDATE routes SET number=%s, name=%s WHERE id=%s RETURNING *",
-                        (body.get("number"), body.get("name", ""), item_id)
+                        "UPDATE routes SET number=%s, name=%s, organization=%s, max_graphs=%s WHERE id=%s RETURNING *",
+                        (body.get("number"), body.get("name", ""),
+                         body.get("organization") or None,
+                         int(body.get("max_graphs") or 10),
+                         item_id)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
@@ -68,6 +73,43 @@ def handler(event: dict, context) -> dict:
                     cur.execute("DELETE FROM routes WHERE id = %s", (item_id,))
                     conn.commit()
                     return ok({"deleted": True})
+
+    # --- LINE REPORT: сводный отчёт выхода на линию ---
+    if resource == "linereport":
+        work_date = params.get("work_date")
+        if not work_date:
+            return err("work_date required")
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT
+                        r.id as route_id,
+                        r.number as route_number,
+                        r.name as route_name,
+                        r.organization,
+                        r.max_graphs,
+                        COALESCE(json_agg(
+                            json_build_object(
+                                'graph_number', rg.graph_number,
+                                'board_number', rg.board_number,
+                                'gov_number', rg.gov_number,
+                                'driver_name', rg.driver_name,
+                                'conductor_name', rg.conductor_name,
+                                'trips_planned', rg.trips_planned,
+                                'trips_actual', rg.trips_actual,
+                                'shortage_reason', rg.shortage_reason,
+                                'departure_time', rg.departure_time,
+                                'arrival_time', rg.arrival_time
+                            ) ORDER BY rg.graph_number
+                        ) FILTER (WHERE rg.id IS NOT NULL), '[]') as graphs
+                    FROM routes r
+                    LEFT JOIN route_graphs rg
+                        ON rg.route_id = r.id AND rg.work_date = %s
+                    GROUP BY r.id, r.number, r.name, r.organization, r.max_graphs
+                    ORDER BY r.organization NULLS LAST, r.number
+                """, (work_date,))
+                rows = list(cur.fetchall())
+                return ok(rows)
 
     # --- BUSES ---
     if resource == "buses":

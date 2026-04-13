@@ -30,9 +30,10 @@ async function docsReq(method: string, resource: string, body?: object, params?:
 export const api = {
   // Routes
   getRoutes: () => req("GET", "routes"),
-  createRoute: (data: { number: string; name: string }) => req("POST", "routes", data),
-  updateRoute: (id: number, data: { number: string; name: string }) => req("PUT", "routes", data, { id: String(id) }),
+  createRoute: (data: { number: string; name: string; organization?: string; max_graphs?: number }) => req("POST", "routes", data),
+  updateRoute: (id: number, data: { number: string; name: string; organization?: string; max_graphs?: number }) => req("PUT", "routes", data, { id: String(id) }),
   deleteRoute: (id: number) => req("DELETE", "routes", undefined, { id: String(id) }),
+  getLineReport: (workDate: string) => req("GET", "linereport", undefined, { work_date: workDate }),
 
   // Buses
   getBuses: () => req("GET", "buses"),

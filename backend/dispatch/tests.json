@@ -41,6 +41,13 @@
       "path": "/?resource=graphs",
       "expectedStatus": 400,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET linereport missing date",
+      "method": "GET",
+      "path": "/?resource=linereport",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
     }
   ]
 }
