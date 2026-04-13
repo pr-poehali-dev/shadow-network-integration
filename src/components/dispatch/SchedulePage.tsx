@@ -51,7 +51,7 @@ function fmtMoney(v: number | null) {
 
 function handlePrint(date: string, entries: Entry[]) {
   const rows = entries.map(e => {
-    const total = e.revenue_total ?? ((e.revenue_cash ?? 0) + (e.revenue_cashless ?? 0)) || null;
+    const total = e.revenue_total ?? (((e.revenue_cash ?? 0) + (e.revenue_cashless ?? 0)) || null);
     return `
     <tr>
       <td>${e.route_number}${e.graph_number ? ` <small>(гр.${e.graph_number})</small>` : ""}${e.route_name ? `<br/><small>${e.route_name}</small>` : ""}</td>
@@ -434,7 +434,7 @@ export default function SchedulePage() {
                                   <NumInput value={entry.ticket_price ?? 33} placeholder="33"
                                     onSave={v => {
                                       const tp = v ? Number(v) : 33;
-                                      const total = entry.revenue_total ?? ((entry.revenue_cash ?? 0) + (entry.revenue_cashless ?? 0)) || null;
+                                      const total = entry.revenue_total ?? (((entry.revenue_cash ?? 0) + (entry.revenue_cashless ?? 0)) || null);
                                       handleUpdate(entry, {
                                         ticket_price: tp,
                                         tickets_sold: total ? Math.floor(total / tp) : null,
