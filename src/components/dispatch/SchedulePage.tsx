@@ -27,6 +27,7 @@ interface Entry {
   terminal_name: string | null;
   terminal_number: string | null;
   terminal_org: string | null;
+  fuel_spent: number | null;
 }
 
 function today() {
@@ -46,6 +47,7 @@ function handlePrint(date: string, entries: Entry[]) {
       <td>${e.driver_name ?? "—"}</td>
       <td>${e.conductor_name ?? "—"}</td>
       <td>${e.terminal_name ?? "—"}</td>
+      <td style="text-align:right">${e.fuel_spent != null ? e.fuel_spent + " л" : "—"}</td>
     </tr>
   `).join("");
 
@@ -72,7 +74,7 @@ function handlePrint(date: string, entries: Entry[]) {
   <p class="sub">RoutePayroll — сформировано ${new Date().toLocaleString("ru")}</p>
   <table>
     <thead>
-      <tr><th>Маршрут / График</th><th>Бортовой №</th><th>Водитель</th><th>Кондуктор</th><th>Терминал</th></tr>
+      <tr><th>Маршрут / График</th><th>Бортовой №</th><th>Водитель</th><th>Кондуктор</th><th>Терминал</th><th style="text-align:right">Расход ДТ</th></tr>
     </thead>
     <tbody>${rows}</tbody>
   </table>
@@ -157,6 +159,7 @@ export default function SchedulePage() {
       driver_id: field === "driver_id" ? (value ? Number(value) : null) : entry.driver_id,
       conductor_id: field === "conductor_id" ? (value ? Number(value) : null) : entry.conductor_id,
       terminal_id: field === "terminal_id" ? (value ? Number(value) : null) : entry.terminal_id,
+      fuel_spent: field === "fuel_spent" ? (value ? Number(value) : null) : entry.fuel_spent,
     });
     await loadSchedule(date);
   };
@@ -273,6 +276,7 @@ export default function SchedulePage() {
                       <th className="px-4 py-2 text-left">Водитель</th>
                       <th className="px-4 py-2 text-left">Кондуктор</th>
                       <th className="px-4 py-2 text-left">Терминал</th>
+                      <th className="px-4 py-2 text-right w-28">Расход ДТ</th>
                       <th className="px-4 py-2 w-10"></th>
                     </tr>
                   </thead>
@@ -320,6 +324,22 @@ export default function SchedulePage() {
                               <option key={t.id} value={t.id}>{t.name}</option>
                             ))}
                           </select>
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            defaultValue={entry.fuel_spent ?? ""}
+                            placeholder="л"
+                            onBlur={e => {
+                              const val = e.target.value;
+                              const num = val ? Number(val) : null;
+                              if (num !== entry.fuel_spent) handleUpdate(entry, "fuel_spent", val);
+                            }}
+                            onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                            className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500 text-right"
+                          />
                         </td>
                         <td className="px-4 py-2 text-center">
                           <button onClick={() => handleDelete(entry.id)}

@@ -237,6 +237,7 @@ def handler(event: dict, context) -> dict:
                            b.id as bus_id, b.board_number, b.model as bus_model,
                            d.id as driver_id, d.full_name as driver_name,
                            c.id as conductor_id, c.full_name as conductor_name,
+                           se.fuel_spent,
                            t.id as terminal_id, t.number as terminal_number,
                            t.name as terminal_name, t.organization as terminal_org
                     FROM schedule_entries se
@@ -258,8 +259,8 @@ def handler(event: dict, context) -> dict:
 
                 if method == "POST":
                     cur.execute("""
-                        INSERT INTO schedule_entries (work_date, route_id, graph_number, bus_id, driver_id, conductor_id, terminal_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+                        INSERT INTO schedule_entries (work_date, route_id, graph_number, bus_id, driver_id, conductor_id, terminal_id, fuel_spent)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
                     """, (
                         body.get("work_date"),
                         body.get("route_id"),
@@ -268,6 +269,7 @@ def handler(event: dict, context) -> dict:
                         body.get("driver_id") or None,
                         body.get("conductor_id") or None,
                         body.get("terminal_id") or None,
+                        body.get("fuel_spent") or None,
                     ))
                     conn.commit()
                     new_id = cur.fetchone()["id"]
@@ -277,7 +279,7 @@ def handler(event: dict, context) -> dict:
                 if method == "PUT":
                     cur.execute("""
                         UPDATE schedule_entries
-                        SET bus_id=%s, driver_id=%s, conductor_id=%s, graph_number=%s, terminal_id=%s
+                        SET bus_id=%s, driver_id=%s, conductor_id=%s, graph_number=%s, terminal_id=%s, fuel_spent=%s
                         WHERE id=%s
                     """, (
                         body.get("bus_id") or None,
@@ -285,6 +287,7 @@ def handler(event: dict, context) -> dict:
                         body.get("conductor_id") or None,
                         body.get("graph_number") or None,
                         body.get("terminal_id") or None,
+                        body.get("fuel_spent") or None,
                         body.get("id")
                     ))
                     conn.commit()
@@ -399,9 +402,11 @@ def handler(event: dict, context) -> dict:
                         d.id,
                         d.full_name,
                         COUNT(se.id) AS shifts,
+                        COALESCE(SUM(se.fuel_spent), 0) AS total_fuel,
                         ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
                         ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers,
-                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names
+                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names,
+                        ARRAY_AGG(se.fuel_spent ORDER BY se.work_date) AS fuel_values
                     FROM drivers d
                     LEFT JOIN schedule_entries se
                         ON se.driver_id = d.id
@@ -420,9 +425,11 @@ def handler(event: dict, context) -> dict:
                         c.id,
                         c.full_name,
                         COUNT(se.id) AS shifts,
+                        COALESCE(SUM(se.fuel_spent), 0) AS total_fuel,
                         ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
                         ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers,
-                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names
+                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names,
+                        ARRAY_AGG(se.fuel_spent ORDER BY se.work_date) AS fuel_values
                     FROM conductors c
                     LEFT JOIN schedule_entries se
                         ON se.conductor_id = c.id
@@ -442,9 +449,11 @@ def handler(event: dict, context) -> dict:
                         b.board_number,
                         b.model,
                         COUNT(se.id) AS shifts,
+                        COALESCE(SUM(se.fuel_spent), 0) AS total_fuel,
                         ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
                         ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers,
-                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names
+                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names,
+                        ARRAY_AGG(se.fuel_spent ORDER BY se.work_date) AS fuel_values
                     FROM buses b
                     LEFT JOIN schedule_entries se
                         ON se.bus_id = b.id
