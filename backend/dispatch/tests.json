@@ -1,0 +1,39 @@
+{
+  "tests": [
+    {
+      "name": "GET routes",
+      "method": "GET",
+      "path": "/?resource=routes",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET buses",
+      "method": "GET",
+      "path": "/?resource=buses",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET drivers",
+      "method": "GET",
+      "path": "/?resource=drivers",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET conductors",
+      "method": "GET",
+      "path": "/?resource=conductors",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET schedule missing date",
+      "method": "GET",
+      "path": "/?resource=schedule",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
+    }
+  ]
+}
