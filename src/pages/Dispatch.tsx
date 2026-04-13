@@ -77,24 +77,48 @@ export default function Dispatch() {
           {tab === "drivers" && (
             <CatalogPage
               title="Водители"
-              fields={[{ key: "full_name", label: "ФИО", placeholder: "Фамилия Имя Отчество" }]}
+              fields={[
+                { key: "full_name", label: "ФИО", placeholder: "Фамилия Имя Отчество" },
+                { key: "phone", label: "Телефон", placeholder: "Номер телефона" },
+                { key: "birth_date", label: "Дата рождения", placeholder: "ГГГГ-ММ-ДД" },
+                { key: "snils", label: "СНИЛС", placeholder: "000-000-000 00" },
+                { key: "inn", label: "ИНН", placeholder: "ИНН" },
+                { key: "license_number", label: "Вод. удостоверение №", placeholder: "Серия и номер" },
+                { key: "license_date", label: "Дата выдачи ВУ", placeholder: "ГГГГ-ММ-ДД" },
+              ]}
               fetchFn={api.getDrivers}
               createFn={data => api.createDriver(data as { full_name: string })}
               updateFn={(id, data) => api.updateDriver(id, data as { full_name: string })}
               deleteFn={api.deleteDriver}
-              renderRow={item => <span className="text-neutral-900">{String(item.full_name)}</span>}
+              renderRow={item => (
+                <div className="flex items-center gap-3">
+                  <span className="text-neutral-900 font-medium">{String(item.full_name)}</span>
+                  {item.phone && <span className="text-neutral-500 text-xs">{String(item.phone)}</span>}
+                </div>
+              )}
             />
           )}
 
           {tab === "conductors" && (
             <CatalogPage
               title="Кондукторы"
-              fields={[{ key: "full_name", label: "ФИО", placeholder: "Фамилия Имя Отчество" }]}
+              fields={[
+                { key: "full_name", label: "ФИО", placeholder: "Фамилия Имя Отчество" },
+                { key: "phone", label: "Телефон", placeholder: "Номер телефона" },
+                { key: "birth_date", label: "Дата рождения", placeholder: "ГГГГ-ММ-ДД" },
+                { key: "snils", label: "СНИЛС", placeholder: "000-000-000 00" },
+                { key: "inn", label: "ИНН", placeholder: "ИНН" },
+              ]}
               fetchFn={api.getConductors}
               createFn={data => api.createConductor(data as { full_name: string })}
               updateFn={(id, data) => api.updateConductor(id, data as { full_name: string })}
               deleteFn={api.deleteConductor}
-              renderRow={item => <span className="text-neutral-900">{String(item.full_name)}</span>}
+              renderRow={item => (
+                <div className="flex items-center gap-3">
+                  <span className="text-neutral-900 font-medium">{String(item.full_name)}</span>
+                  {item.phone && <span className="text-neutral-500 text-xs">{String(item.phone)}</span>}
+                </div>
+              )}
             />
           )}
         </main>

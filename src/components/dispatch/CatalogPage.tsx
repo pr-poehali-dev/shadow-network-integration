@@ -10,6 +10,7 @@ interface Field {
   key: string;
   label: string;
   placeholder: string;
+  required?: boolean;
 }
 
 interface Props {
@@ -51,7 +52,7 @@ export default function CatalogPage({ title, fields, fetchFn, createFn, updateFn
   };
 
   const handleSave = async () => {
-    if (fields.some(f => !form[f.key]?.trim())) return;
+    if (fields.some(f => (f.required !== false) && f.key === "full_name" && !form[f.key]?.trim())) return;
     setSaving(true);
     if (editId !== null) {
       await updateFn(editId, form);

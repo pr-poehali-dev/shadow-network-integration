@@ -146,15 +146,19 @@ def handler(event: dict, context) -> dict:
                     return ok(list(cur.fetchall()))
                 if method == "POST":
                     cur.execute(
-                        "INSERT INTO drivers (full_name) VALUES (%s) RETURNING *",
-                        (body.get("full_name"),)
+                        "INSERT INTO drivers (full_name, phone, birth_date, snils, inn, license_number, license_date) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *",
+                        (body.get("full_name"), body.get("phone") or None, body.get("birth_date") or None,
+                         body.get("snils") or None, body.get("inn") or None,
+                         body.get("license_number") or None, body.get("license_date") or None)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
                 if method == "PUT":
                     cur.execute(
-                        "UPDATE drivers SET full_name=%s WHERE id=%s RETURNING *",
-                        (body.get("full_name"), item_id)
+                        "UPDATE drivers SET full_name=%s, phone=%s, birth_date=%s, snils=%s, inn=%s, license_number=%s, license_date=%s WHERE id=%s RETURNING *",
+                        (body.get("full_name"), body.get("phone") or None, body.get("birth_date") or None,
+                         body.get("snils") or None, body.get("inn") or None,
+                         body.get("license_number") or None, body.get("license_date") or None, item_id)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
@@ -172,15 +176,17 @@ def handler(event: dict, context) -> dict:
                     return ok(list(cur.fetchall()))
                 if method == "POST":
                     cur.execute(
-                        "INSERT INTO conductors (full_name) VALUES (%s) RETURNING *",
-                        (body.get("full_name"),)
+                        "INSERT INTO conductors (full_name, phone, birth_date, snils, inn) VALUES (%s, %s, %s, %s, %s) RETURNING *",
+                        (body.get("full_name"), body.get("phone") or None, body.get("birth_date") or None,
+                         body.get("snils") or None, body.get("inn") or None)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
                 if method == "PUT":
                     cur.execute(
-                        "UPDATE conductors SET full_name=%s WHERE id=%s RETURNING *",
-                        (body.get("full_name"), item_id)
+                        "UPDATE conductors SET full_name=%s, phone=%s, birth_date=%s, snils=%s, inn=%s WHERE id=%s RETURNING *",
+                        (body.get("full_name"), body.get("phone") or None, body.get("birth_date") or None,
+                         body.get("snils") or None, body.get("inn") or None, item_id)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
