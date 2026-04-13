@@ -1,0 +1,18 @@
+{
+  "tests": [
+    {
+      "name": "GET docs missing bus_id",
+      "method": "GET",
+      "path": "/?resource=docs",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET alerts",
+      "method": "GET",
+      "path": "/?resource=alerts&days=60",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    }
+  ]
+}

@@ -1,7 +1,21 @@
 const BASE = "https://functions.poehali.dev/eddcaeff-a568-4560-b649-6d3a1ba1a4db";
+const DOCS_BASE = "https://functions.poehali.dev/f5dab932-b9b8-411b-8dae-1739a99ce665";
 
 async function req(method: string, resource: string, body?: object, params?: Record<string, string>) {
   const url = new URL(BASE);
+  url.searchParams.set("resource", resource);
+  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+
+  const res = await fetch(url.toString(), {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res.json();
+}
+
+async function docsReq(method: string, resource: string, body?: object, params?: Record<string, string>) {
+  const url = new URL(DOCS_BASE);
   url.searchParams.set("resource", resource);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
@@ -46,4 +60,11 @@ export const api = {
 
   // Summary
   getSummary: (year: number, month: number) => req("GET", "summary", undefined, { year: String(year), month: String(month) }),
+
+  // Bus documents
+  getBusDocs: (busId: number) => docsReq("GET", "docs", undefined, { bus_id: String(busId) }),
+  getAlerts: (days?: number) => docsReq("GET", "alerts", undefined, { days: String(days ?? 30) }),
+  createBusDoc: (data: object) => docsReq("POST", "docs", data),
+  updateBusDoc: (id: number, data: object) => docsReq("PUT", "docs", data, { id: String(id) }),
+  deleteBusDoc: (id: number) => docsReq("DELETE", "docs", undefined, { id: String(id) }),
 };

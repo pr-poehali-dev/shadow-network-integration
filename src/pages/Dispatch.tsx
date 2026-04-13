@@ -3,13 +3,15 @@ import { api } from "@/lib/api";
 import CatalogPage from "@/components/dispatch/CatalogPage";
 import SchedulePage from "@/components/dispatch/SchedulePage";
 import SummaryPage from "@/components/dispatch/SummaryPage";
+import BusDocsPage from "@/components/dispatch/BusDocsPage";
 import Icon from "@/components/ui/icon";
 
-type Tab = "schedule" | "summary" | "routes" | "buses" | "drivers" | "conductors";
+type Tab = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors";
 
 const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: "schedule", label: "Расписание", icon: "CalendarDays" },
   { id: "summary", label: "Сводка смен", icon: "BarChart2" },
+  { id: "busdocs", label: "Документы ТС", icon: "FileText" },
   { id: "routes", label: "Маршруты", icon: "Map" },
   { id: "buses", label: "Автобусы", icon: "Bus" },
   { id: "drivers", label: "Водители", icon: "User" },
@@ -47,6 +49,7 @@ export default function Dispatch() {
         <main className="flex-1 p-8 overflow-y-auto">
           {tab === "schedule" && <SchedulePage />}
           {tab === "summary" && <SummaryPage />}
+          {tab === "busdocs" && <BusDocsPage />}
 
           {tab === "routes" && (
             <CatalogPage
