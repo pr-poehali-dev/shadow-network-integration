@@ -193,79 +193,60 @@ def handler(event: dict, context) -> dict:
     if resource == "schedule":
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                SEL = """
+                    SELECT se.id, se.work_date, se.graph_number,
+                           r.id as route_id, r.number as route_number, r.name as route_name,
+                           r.max_graphs,
+                           b.id as bus_id, b.board_number, b.model as bus_model,
+                           d.id as driver_id, d.full_name as driver_name,
+                           c.id as conductor_id, c.full_name as conductor_name
+                    FROM schedule_entries se
+                    JOIN routes r ON r.id = se.route_id
+                    LEFT JOIN buses b ON b.id = se.bus_id
+                    LEFT JOIN drivers d ON d.id = se.driver_id
+                    LEFT JOIN conductors c ON c.id = se.conductor_id
+                """
                 if method == "GET":
                     date = params.get("date")
                     if not date:
                         return err("date required")
-                    cur.execute("""
-                        SELECT se.id, se.work_date,
-                               r.id as route_id, r.number as route_number, r.name as route_name,
-                               b.id as bus_id, b.board_number, b.model as bus_model,
-                               d.id as driver_id, d.full_name as driver_name,
-                               c.id as conductor_id, c.full_name as conductor_name
-                        FROM schedule_entries se
-                        JOIN routes r ON r.id = se.route_id
-                        LEFT JOIN buses b ON b.id = se.bus_id
-                        LEFT JOIN drivers d ON d.id = se.driver_id
-                        LEFT JOIN conductors c ON c.id = se.conductor_id
+                    cur.execute(SEL + """
                         WHERE se.work_date = %s
-                        ORDER BY r.number
+                        ORDER BY r.number, se.graph_number NULLS LAST
                     """, (date,))
                     return ok(list(cur.fetchall()))
 
                 if method == "POST":
                     cur.execute("""
-                        INSERT INTO schedule_entries (work_date, route_id, bus_id, driver_id, conductor_id)
-                        VALUES (%s, %s, %s, %s, %s) RETURNING id
+                        INSERT INTO schedule_entries (work_date, route_id, graph_number, bus_id, driver_id, conductor_id)
+                        VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
                     """, (
                         body.get("work_date"),
                         body.get("route_id"),
+                        body.get("graph_number") or None,
                         body.get("bus_id") or None,
                         body.get("driver_id") or None,
                         body.get("conductor_id") or None,
                     ))
                     conn.commit()
                     new_id = cur.fetchone()["id"]
-                    cur.execute("""
-                        SELECT se.id, se.work_date,
-                               r.id as route_id, r.number as route_number, r.name as route_name,
-                               b.id as bus_id, b.board_number, b.model as bus_model,
-                               d.id as driver_id, d.full_name as driver_name,
-                               c.id as conductor_id, c.full_name as conductor_name
-                        FROM schedule_entries se
-                        JOIN routes r ON r.id = se.route_id
-                        LEFT JOIN buses b ON b.id = se.bus_id
-                        LEFT JOIN drivers d ON d.id = se.driver_id
-                        LEFT JOIN conductors c ON c.id = se.conductor_id
-                        WHERE se.id = %s
-                    """, (new_id,))
+                    cur.execute(SEL + " WHERE se.id = %s", (new_id,))
                     return ok(dict(cur.fetchone()))
 
                 if method == "PUT":
                     cur.execute("""
                         UPDATE schedule_entries
-                        SET bus_id=%s, driver_id=%s, conductor_id=%s
+                        SET bus_id=%s, driver_id=%s, conductor_id=%s, graph_number=%s
                         WHERE id=%s
                     """, (
                         body.get("bus_id") or None,
                         body.get("driver_id") or None,
                         body.get("conductor_id") or None,
+                        body.get("graph_number") or None,
                         body.get("id")
                     ))
                     conn.commit()
-                    cur.execute("""
-                        SELECT se.id, se.work_date,
-                               r.id as route_id, r.number as route_number, r.name as route_name,
-                               b.id as bus_id, b.board_number, b.model as bus_model,
-                               d.id as driver_id, d.full_name as driver_name,
-                               c.id as conductor_id, c.full_name as conductor_name
-                        FROM schedule_entries se
-                        JOIN routes r ON r.id = se.route_id
-                        LEFT JOIN buses b ON b.id = se.bus_id
-                        LEFT JOIN drivers d ON d.id = se.driver_id
-                        LEFT JOIN conductors c ON c.id = se.conductor_id
-                        WHERE se.id = %s
-                    """, (body.get("id"),))
+                    cur.execute(SEL + " WHERE se.id = %s", (body.get("id"),))
                     return ok(dict(cur.fetchone()))
 
                 if method == "DELETE":
