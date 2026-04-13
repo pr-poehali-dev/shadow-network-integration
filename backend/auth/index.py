@@ -44,7 +44,7 @@ def get_current_user(event):
     with get_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
-                SELECT u.id, u.username, u.full_name, u.role, u.is_active
+                SELECT u.id, u.username, u.full_name, u.role, u.is_active, u.permissions
                 FROM sessions s
                 JOIN users u ON u.id = s.user_id
                 WHERE s.token = %s AND s.expires_at > NOW() AND u.is_active = true
@@ -94,6 +94,7 @@ def handler(event: dict, context) -> dict:
                         "username": user["username"],
                         "full_name": user["full_name"],
                         "role": user["role"],
+                        "permissions": user.get("permissions") or None,
                     }
                 })
 
@@ -124,7 +125,7 @@ def handler(event: dict, context) -> dict:
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 if method == "GET":
-                    cur.execute("SELECT id, username, full_name, role, is_active, created_at FROM users ORDER BY created_at")
+                    cur.execute("SELECT id, username, full_name, role, is_active, permissions, created_at FROM users ORDER BY created_at")
                     return ok(list(cur.fetchall()))
 
                 if method == "POST":
@@ -140,9 +141,10 @@ def handler(event: dict, context) -> dict:
                     cur.execute("SELECT id FROM users WHERE username = %s", (username,))
                     if cur.fetchone():
                         return err("Логин уже занят")
+                    permissions = body.get("permissions") or None
                     cur.execute(
-                        "INSERT INTO users (username, password_hash, full_name, role) VALUES (%s, %s, %s, %s) RETURNING id, username, full_name, role, is_active, created_at",
-                        (username, hash_password(password), full_name, role)
+                        "INSERT INTO users (username, password_hash, full_name, role, permissions) VALUES (%s, %s, %s, %s, %s) RETURNING id, username, full_name, role, is_active, permissions, created_at",
+                        (username, hash_password(password), full_name, role, permissions)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
@@ -170,13 +172,16 @@ def handler(event: dict, context) -> dict:
                     if password:
                         updates.append("password_hash = %s")
                         values.append(hash_password(password))
+                    if "permissions" in body:
+                        updates.append("permissions = %s")
+                        values.append(body.get("permissions") or None)
 
                     if not updates:
                         return err("Нечего обновлять")
 
                     values.append(uid)
                     cur.execute(
-                        f"UPDATE users SET {', '.join(updates)} WHERE id = %s RETURNING id, username, full_name, role, is_active, created_at",
+                        f"UPDATE users SET {', '.join(updates)} WHERE id = %s RETURNING id, username, full_name, role, is_active, permissions, created_at",
                         values
                     )
                     conn.commit()

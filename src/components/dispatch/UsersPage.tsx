@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import { ROLE_LABELS, Role } from "@/lib/auth";
+import { ROLE_LABELS, Role, ALL_TABS, TabId, getUserTabs } from "@/lib/auth";
 import Icon from "@/components/ui/icon";
 
 interface UserRow {
@@ -9,10 +9,12 @@ interface UserRow {
   full_name: string;
   role: string;
   is_active: boolean;
+  permissions: string | null;
   created_at: string;
 }
 
 const ROLES: Role[] = ["admin", "dispatcher", "mechanic", "hr", "accountant"];
+const EDITABLE_TABS = ALL_TABS.filter(t => t.id !== "users" && t.id !== "settings");
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -21,6 +23,7 @@ export default function UsersPage() {
   const [form, setForm] = useState({ username: "", password: "", full_name: "", role: "dispatcher" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [editPermsId, setEditPermsId] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -52,7 +55,21 @@ export default function UsersPage() {
   };
 
   const changeRole = async (u: UserRow, role: string) => {
-    await api.updateUser(u.id, { role });
+    await api.updateUser(u.id, { role, permissions: null });
+    await load();
+  };
+
+  const getUserPerms = (u: UserRow): TabId[] => {
+    return getUserTabs({ id: u.id, username: u.username, full_name: u.full_name, role: u.role as Role, permissions: u.permissions });
+  };
+
+  const togglePerm = async (u: UserRow, tabId: TabId) => {
+    const current = getUserPerms(u);
+    const next = current.includes(tabId)
+      ? current.filter(t => t !== tabId)
+      : [...current, tabId];
+    const permsStr = next.join(",") || null;
+    await api.updateUser(u.id, { permissions: permsStr });
     await load();
   };
 
@@ -110,41 +127,68 @@ export default function UsersPage() {
       {loading ? (
         <div className="text-neutral-500 text-sm py-8 text-center">Загрузка...</div>
       ) : (
-        <div className="border border-neutral-200 rounded overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-100 text-neutral-600 uppercase text-xs tracking-wide">
-              <tr>
-                <th className="px-4 py-3 text-left">ФИО</th>
-                <th className="px-4 py-3 text-left">Логин</th>
-                <th className="px-4 py-3 text-left">Роль</th>
-                <th className="px-4 py-3 text-center w-24">Статус</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map(u => (
-                <tr key={u.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-neutral-900">{u.full_name}</td>
-                  <td className="px-4 py-3 text-neutral-500 font-mono text-xs">{u.username}</td>
-                  <td className="px-4 py-3">
-                    <select value={u.role} onChange={e => changeRole(u, e.target.value)}
-                      className="border border-neutral-200 rounded px-2 py-1 text-xs bg-white focus:outline-none">
-                      {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <button onClick={() => toggleActive(u)}
-                      className={`text-xs px-2 py-1 rounded cursor-pointer transition-colors ${
-                        u.is_active
-                          ? "bg-green-50 text-green-700 hover:bg-green-100"
-                          : "bg-neutral-100 text-neutral-400 hover:bg-neutral-200"
+        <div className="flex flex-col gap-3">
+          {users.map(u => {
+            const perms = getUserPerms(u);
+            const isPermsOpen = editPermsId === u.id;
+            const isAdmin = u.role === "admin";
+
+            return (
+              <div key={u.id} className="border border-neutral-200 rounded overflow-hidden">
+                <div className="px-4 py-3 flex items-center gap-4 flex-wrap">
+                  <div className="flex-1 min-w-[150px]">
+                    <span className="font-medium text-neutral-900">{u.full_name}</span>
+                    <span className="ml-2 text-neutral-400 font-mono text-xs">{u.username}</span>
+                  </div>
+                  <select value={u.role} onChange={e => changeRole(u, e.target.value)}
+                    className="border border-neutral-200 rounded px-2 py-1 text-xs bg-white focus:outline-none">
+                    {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                  </select>
+                  {!isAdmin && (
+                    <button onClick={() => setEditPermsId(isPermsOpen ? null : u.id)}
+                      className={`text-xs px-3 py-1 rounded cursor-pointer transition-colors flex items-center gap-1 ${
+                        isPermsOpen ? "bg-neutral-900 text-white" : "border border-neutral-300 text-neutral-600 hover:bg-neutral-100"
                       }`}>
-                      {u.is_active ? "Активен" : "Отключён"}
+                      <Icon name="Shield" size={12} />
+                      Доступы
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  )}
+                  <button onClick={() => toggleActive(u)}
+                    className={`text-xs px-2 py-1 rounded cursor-pointer transition-colors ${
+                      u.is_active
+                        ? "bg-green-50 text-green-700 hover:bg-green-100"
+                        : "bg-neutral-100 text-neutral-400 hover:bg-neutral-200"
+                    }`}>
+                    {u.is_active ? "Активен" : "Отключён"}
+                  </button>
+                </div>
+
+                {isPermsOpen && !isAdmin && (
+                  <div className="px-4 py-3 bg-neutral-50 border-t border-neutral-200">
+                    <p className="text-xs text-neutral-500 mb-2">Разделы, доступные пользователю:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {EDITABLE_TABS.map(t => {
+                        const active = perms.includes(t.id);
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => togglePerm(u, t.id)}
+                            className={`text-xs px-3 py-1.5 rounded cursor-pointer transition-colors border ${
+                              active
+                                ? "bg-neutral-900 text-white border-neutral-900"
+                                : "bg-white text-neutral-500 border-neutral-300 hover:border-neutral-500"
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

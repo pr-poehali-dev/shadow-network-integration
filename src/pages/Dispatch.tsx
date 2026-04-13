@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { useAuth, AuthProvider, ROLE_LABELS, Role } from "@/lib/auth";
+import { useAuth, AuthProvider, ROLE_LABELS, Role, TabId } from "@/lib/auth";
 import CatalogPage from "@/components/dispatch/CatalogPage";
 import SchedulePage from "@/components/dispatch/SchedulePage";
 import SummaryPage from "@/components/dispatch/SummaryPage";
@@ -11,24 +11,22 @@ import UsersPage from "@/components/dispatch/UsersPage";
 import LoginPage from "@/components/dispatch/LoginPage";
 import Icon from "@/components/ui/icon";
 
-type Tab = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors" | "terminals" | "settings" | "users";
-
-const allTabs: { id: Tab; label: string; icon: string; roles: Role[] }[] = [
-  { id: "schedule",   label: "Расписание",    icon: "CalendarDays",      roles: ["admin", "dispatcher"] },
-  { id: "summary",    label: "Сводка смен",   icon: "BarChart2",         roles: ["admin", "dispatcher", "accountant"] },
-  { id: "busdocs",    label: "Документы ТС",  icon: "FileText",          roles: ["admin", "dispatcher", "mechanic"] },
-  { id: "routes",     label: "Маршруты",      icon: "Map",               roles: ["admin"] },
-  { id: "buses",      label: "Автобусы",      icon: "Bus",               roles: ["admin", "mechanic"] },
-  { id: "drivers",    label: "Водители",      icon: "User",              roles: ["admin", "hr"] },
-  { id: "conductors", label: "Кондукторы",    icon: "Users",             roles: ["admin", "hr"] },
-  { id: "terminals",  label: "Терминалы",     icon: "MonitorSmartphone", roles: ["admin"] },
-  { id: "users",      label: "Пользователи",  icon: "Shield",            roles: ["admin"] },
-  { id: "settings",   label: "Настройки",     icon: "Settings",          roles: ["admin"] },
+const allTabs: { id: TabId; label: string; icon: string }[] = [
+  { id: "schedule",   label: "Расписание",    icon: "CalendarDays" },
+  { id: "summary",    label: "Сводка смен",   icon: "BarChart2" },
+  { id: "busdocs",    label: "Документы ТС",  icon: "FileText" },
+  { id: "routes",     label: "Маршруты",      icon: "Map" },
+  { id: "buses",      label: "Автобусы",      icon: "Bus" },
+  { id: "drivers",    label: "Водители",      icon: "User" },
+  { id: "conductors", label: "Кондукторы",    icon: "Users" },
+  { id: "terminals",  label: "Терминалы",     icon: "MonitorSmartphone" },
+  { id: "users",      label: "Пользователи",  icon: "Shield" },
+  { id: "settings",   label: "Настройки",     icon: "Settings" },
 ];
 
 function DispatchApp() {
-  const { user, loading, logout } = useAuth();
-  const [tab, setTab] = useState<Tab>("schedule");
+  const { user, loading, logout, hasAccess } = useAuth();
+  const [tab, setTab] = useState<TabId>("schedule");
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-neutral-500 text-sm">Загрузка...</div>;
@@ -36,7 +34,7 @@ function DispatchApp() {
 
   if (!user) return <LoginPage />;
 
-  const visibleTabs = allTabs.filter(t => t.roles.includes(user.role as Role));
+  const visibleTabs = allTabs.filter(t => hasAccess(t.id));
   const currentTab = visibleTabs.find(t => t.id === tab) ? tab : visibleTabs[0]?.id ?? "schedule";
 
   return (

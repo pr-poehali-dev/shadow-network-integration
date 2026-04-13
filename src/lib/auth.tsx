@@ -3,11 +3,14 @@ import { api } from "./api";
 
 export type Role = "admin" | "dispatcher" | "mechanic" | "hr" | "accountant";
 
+export type TabId = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors" | "terminals" | "settings" | "users";
+
 export interface User {
   id: number;
   username: string;
   full_name: string;
   role: Role;
+  permissions?: string | null;
 }
 
 interface AuthCtx {
@@ -15,6 +18,7 @@ interface AuthCtx {
   loading: boolean;
   login: (username: string, password: string) => Promise<string | null>;
   logout: () => void;
+  hasAccess: (tab: TabId) => boolean;
 }
 
 const AuthContext = createContext<AuthCtx>({
@@ -22,7 +26,38 @@ const AuthContext = createContext<AuthCtx>({
   loading: true,
   login: async () => null,
   logout: () => {},
+  hasAccess: () => false,
 });
+
+const DEFAULT_ROLE_TABS: Record<Role, TabId[]> = {
+  admin: ["schedule", "summary", "busdocs", "routes", "buses", "drivers", "conductors", "terminals", "settings", "users"],
+  dispatcher: ["schedule", "summary", "busdocs"],
+  mechanic: ["busdocs", "buses"],
+  hr: ["drivers", "conductors"],
+  accountant: ["summary"],
+};
+
+export const ALL_TABS: { id: TabId; label: string }[] = [
+  { id: "schedule", label: "Расписание" },
+  { id: "summary", label: "Сводка смен" },
+  { id: "busdocs", label: "Документы ТС" },
+  { id: "routes", label: "Маршруты" },
+  { id: "buses", label: "Автобусы" },
+  { id: "drivers", label: "Водители" },
+  { id: "conductors", label: "Кондукторы" },
+  { id: "terminals", label: "Терминалы" },
+  { id: "settings", label: "Настройки" },
+  { id: "users", label: "Пользователи" },
+];
+
+export function getUserTabs(user: User): TabId[] {
+  if (user.role === "admin") return DEFAULT_ROLE_TABS.admin;
+  if (user.permissions) {
+    const tabs = user.permissions.split(",").filter(Boolean) as TabId[];
+    return tabs.length > 0 ? tabs : DEFAULT_ROLE_TABS[user.role] || [];
+  }
+  return DEFAULT_ROLE_TABS[user.role] || [];
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -55,8 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const hasAccess = (tab: TabId) => {
+    if (!user) return false;
+    return getUserTabs(user).includes(tab);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, hasAccess }}>
       {children}
     </AuthContext.Provider>
   );
