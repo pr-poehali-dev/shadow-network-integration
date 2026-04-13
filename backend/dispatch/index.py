@@ -278,6 +278,26 @@ def handler(event: dict, context) -> dict:
                 """, (year, month))
                 conductors = list(cur.fetchall())
 
-                return ok({"drivers": drivers, "conductors": conductors})
+                # Транспортные средства
+                cur.execute("""
+                    SELECT
+                        b.id,
+                        b.board_number,
+                        b.model,
+                        COUNT(se.id) AS shifts,
+                        ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
+                        ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers
+                    FROM buses b
+                    LEFT JOIN schedule_entries se
+                        ON se.bus_id = b.id
+                        AND EXTRACT(YEAR FROM se.work_date) = %s
+                        AND EXTRACT(MONTH FROM se.work_date) = %s
+                    LEFT JOIN routes r ON r.id = se.route_id
+                    GROUP BY b.id, b.board_number, b.model
+                    ORDER BY b.board_number
+                """, (year, month))
+                buses = list(cur.fetchall())
+
+                return ok({"drivers": drivers, "conductors": conductors, "buses": buses})
 
     return err("Not found", 404)

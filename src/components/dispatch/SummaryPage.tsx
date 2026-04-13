@@ -10,9 +10,19 @@ interface PersonSummary {
   route_numbers: string[] | null;
 }
 
+interface BusSummary {
+  id: number;
+  board_number: string;
+  model: string;
+  shifts: number;
+  dates: string[] | null;
+  route_numbers: string[] | null;
+}
+
 interface Summary {
   drivers: PersonSummary[];
   conductors: PersonSummary[];
+  buses: BusSummary[];
 }
 
 const MONTHS = [
@@ -26,10 +36,10 @@ function formatDate(iso: string) {
 }
 
 function printSummary(year: number, month: number, data: Summary) {
-  const renderTable = (rows: PersonSummary[], role: string) => `
+  const renderPersonTable = (rows: PersonSummary[], role: string) => `
     <h3>${role}</h3>
     <table>
-      <thead><tr><th>ФИО</th><th>Смен</th><th>Даты и маршруты</th></tr></thead>
+      <thead><tr><th>ФИО</th><th>Выходов</th><th>Даты и маршруты</th></tr></thead>
       <tbody>
         ${rows.map(p => `
           <tr>
@@ -38,6 +48,27 @@ function printSummary(year: number, month: number, data: Summary) {
             <td class="details">${
               p.dates && p.dates[0]
                 ? p.dates.map((d, i) => `${formatDate(d)}${p.route_numbers?.[i] ? ` (м.${p.route_numbers[i]})` : ""}`).join(", ")
+                : "—"
+            }</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+
+  const renderBusTable = (rows: BusSummary[]) => `
+    <h3>Транспортные средства</h3>
+    <table>
+      <thead><tr><th>Борт №</th><th>Модель</th><th>Выходов</th><th>Даты и маршруты</th></tr></thead>
+      <tbody>
+        ${rows.map(b => `
+          <tr>
+            <td>${b.board_number}</td>
+            <td>${b.model || "—"}</td>
+            <td style="text-align:center">${b.shifts}</td>
+            <td class="details">${
+              b.dates && b.dates[0]
+                ? b.dates.map((d, i) => `${formatDate(d)}${b.route_numbers?.[i] ? ` (м.${b.route_numbers[i]})` : ""}`).join(", ")
                 : "—"
             }</td>
           </tr>
@@ -65,10 +96,11 @@ function printSummary(year: number, month: number, data: Summary) {
   </style>
 </head>
 <body>
-  <h2>Сводка смен — ${MONTHS[month - 1]} ${year}</h2>
+  <h2>Сводка выходов — ${MONTHS[month - 1]} ${year}</h2>
   <p class="sub">RoutePayroll — сформировано ${new Date().toLocaleString("ru")}</p>
-  ${renderTable(data.drivers, "Водители")}
-  ${renderTable(data.conductors, "Кондукторы")}
+  ${renderPersonTable(data.drivers, "Водители")}
+  ${renderPersonTable(data.conductors, "Кондукторы")}
+  ${renderBusTable(data.buses)}
 </body>
 </html>`;
 
@@ -86,7 +118,7 @@ export default function SummaryPage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"drivers" | "conductors">("drivers");
+  const [activeTab, setActiveTab] = useState<"drivers" | "conductors" | "buses">("drivers");
 
   const load = async () => {
     setLoading(true);
@@ -97,8 +129,13 @@ export default function SummaryPage() {
 
   useEffect(() => { load(); }, [year, month]);
 
-  const rows = data ? (activeTab === "drivers" ? data.drivers : data.conductors) : [];
-  const totalShifts = rows.reduce((s, r) => s + Number(r.shifts), 0);
+  const personRows: PersonSummary[] = data
+    ? (activeTab === "drivers" ? data.drivers : activeTab === "conductors" ? data.conductors : [])
+    : [];
+  const busRows: BusSummary[] = data && activeTab === "buses" ? data.buses : [];
+  const totalShifts = activeTab === "buses"
+    ? busRows.reduce((s, r) => s + Number(r.shifts), 0)
+    : personRows.reduce((s, r) => s + Number(r.shifts), 0);
 
   return (
     <div>
@@ -134,24 +171,78 @@ export default function SummaryPage() {
       </div>
 
       <div className="flex gap-1 mb-4 border-b border-neutral-200">
-        {(["drivers", "conductors"] as const).map(t => (
+        {([
+          { id: "drivers", label: "Водители" },
+          { id: "conductors", label: "Кондукторы" },
+          { id: "buses", label: "ТС" },
+        ] as const).map(t => (
           <button
-            key={t}
-            onClick={() => setActiveTab(t)}
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
             className={`px-4 py-2 text-sm cursor-pointer transition-colors border-b-2 -mb-px ${
-              activeTab === t
+              activeTab === t.id
                 ? "border-neutral-900 text-neutral-900 font-semibold"
                 : "border-transparent text-neutral-500 hover:text-neutral-700"
             }`}
           >
-            {t === "drivers" ? "Водители" : "Кондукторы"}
+            {t.label}
           </button>
         ))}
       </div>
 
       {loading ? (
         <div className="text-neutral-500 text-sm py-8 text-center">Загрузка...</div>
-      ) : rows.length === 0 ? (
+      ) : activeTab === "buses" ? (
+        busRows.length === 0 ? (
+          <div className="text-neutral-400 text-sm py-8 text-center">Нет данных за выбранный период</div>
+        ) : (
+          <>
+            <div className="border border-neutral-200 rounded overflow-hidden mb-4">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-100 text-neutral-600 uppercase text-xs tracking-wide">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Борт №</th>
+                    <th className="px-4 py-3 text-left">Модель</th>
+                    <th className="px-4 py-3 text-center w-20">Выходов</th>
+                    <th className="px-4 py-3 text-left">Даты и маршруты</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {busRows.map(bus => (
+                    <tr key={bus.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-neutral-900 whitespace-nowrap">№ {bus.board_number}</td>
+                      <td className="px-4 py-3 text-neutral-500 text-xs whitespace-nowrap">{bus.model || "—"}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                          bus.shifts > 0 ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-400"
+                        }`}>
+                          {bus.shifts}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-neutral-500 text-xs">
+                        {bus.dates && bus.dates[0]
+                          ? bus.dates.map((d, i) => (
+                              <span key={i} className="inline-block mr-2 whitespace-nowrap">
+                                {formatDate(d)}
+                                {bus.route_numbers?.[i] && (
+                                  <span className="ml-0.5 text-neutral-400">(м.{bus.route_numbers[i]})</span>
+                                )}
+                              </span>
+                            ))
+                          : <span className="text-neutral-300">—</span>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="text-sm text-neutral-500 text-right">
+              Итого выходов: <span className="font-semibold text-neutral-900">{totalShifts}</span>
+            </div>
+          </>
+        )
+      ) : personRows.length === 0 ? (
         <div className="text-neutral-400 text-sm py-8 text-center">Нет данных за выбранный период</div>
       ) : (
         <>
@@ -160,12 +251,12 @@ export default function SummaryPage() {
               <thead className="bg-neutral-100 text-neutral-600 uppercase text-xs tracking-wide">
                 <tr>
                   <th className="px-4 py-3 text-left">ФИО</th>
-                  <th className="px-4 py-3 text-center w-20">Смен</th>
+                  <th className="px-4 py-3 text-center w-20">Выходов</th>
                   <th className="px-4 py-3 text-left">Даты и маршруты</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(person => (
+                {personRows.map(person => (
                   <tr key={person.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-neutral-900 whitespace-nowrap">{person.full_name}</td>
                     <td className="px-4 py-3 text-center">
@@ -194,7 +285,7 @@ export default function SummaryPage() {
             </table>
           </div>
           <div className="text-sm text-neutral-500 text-right">
-            Итого смен: <span className="font-semibold text-neutral-900">{totalShifts}</span>
+            Итого выходов: <span className="font-semibold text-neutral-900">{totalShifts}</span>
           </div>
         </>
       )}
