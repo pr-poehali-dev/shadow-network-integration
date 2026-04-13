@@ -244,17 +244,17 @@ export default function SchedulePage() {
     groupedEntries.push({ route: items[0], items });
   });
 
-  const calcEntryTotal = (e: Entry) => e.revenue_total ?? (((e.revenue_cash ?? 0) + (e.revenue_cashless ?? 0)) || 0);
+  const calcEntryTotal = (e: Entry) => Number(e.revenue_total) || ((Number(e.revenue_cash ?? 0) + Number(e.revenue_cashless ?? 0)) || 0);
   const calcEntryTickets = (e: Entry) => {
     const t = calcEntryTotal(e);
     return t ? Math.floor(t / ticketPrice) : 0;
   };
 
-  const dayTotalCash = entries.reduce((s, e) => s + (e.revenue_cash ?? 0), 0);
-  const dayTotalCashless = entries.reduce((s, e) => s + (e.revenue_cashless ?? 0), 0);
+  const dayTotalCash = entries.reduce((s, e) => s + Number(e.revenue_cash ?? 0), 0);
+  const dayTotalCashless = entries.reduce((s, e) => s + Number(e.revenue_cashless ?? 0), 0);
   const dayTotalRevenue = entries.reduce((s, e) => s + calcEntryTotal(e), 0);
   const dayTotalTickets = entries.reduce((s, e) => s + calcEntryTickets(e), 0);
-  const dayTotalFuel = entries.reduce((s, e) => s + (e.fuel_spent ?? 0), 0);
+  const dayTotalFuel = entries.reduce((s, e) => s + Number(e.fuel_spent ?? 0), 0);
 
   return (
     <div>
@@ -462,11 +462,11 @@ export default function SchedulePage() {
                       );
                     })}
                     {items.length > 1 && (() => {
-                      const rCash = items.reduce((s, e) => s + (e.revenue_cash ?? 0), 0);
-                      const rCashless = items.reduce((s, e) => s + (e.revenue_cashless ?? 0), 0);
+                      const rCash = items.reduce((s, e) => s + Number(e.revenue_cash ?? 0), 0);
+                      const rCashless = items.reduce((s, e) => s + Number(e.revenue_cashless ?? 0), 0);
                       const rTotal = items.reduce((s, e) => s + calcEntryTotal(e), 0);
                       const rTickets = items.reduce((s, e) => s + calcEntryTickets(e), 0);
-                      const rFuel = items.reduce((s, e) => s + (e.fuel_spent ?? 0), 0);
+                      const rFuel = items.reduce((s, e) => s + Number(e.fuel_spent ?? 0), 0);
                       return (
                         <tr className="bg-neutral-100 border-t border-neutral-200 font-semibold text-xs text-neutral-700">
                           <td className="px-4 py-2" colSpan={5}>
