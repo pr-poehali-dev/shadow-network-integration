@@ -28,6 +28,9 @@ async function docsReq(method: string, resource: string, body?: object, params?:
 }
 
 export const api = {
+  // Terminals
+  getTerminals: () => req("GET", "terminals"),
+
   // Routes
   getRoutes: () => req("GET", "routes"),
   createRoute: (data: { number: string; name: string; organization?: string; max_graphs?: number }) => req("POST", "routes", data),

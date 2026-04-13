@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import Icon from "@/components/ui/icon";
 
-interface Route { id: number; number: string; name: string; max_graphs: number; }
+interface Route { id: number; number: string; name: string; organization?: string; max_graphs: number; }
 interface Bus { id: number; board_number: string; model: string; }
 interface Driver { id: number; full_name: string; }
 interface Conductor { id: number; full_name: string; }
+interface Terminal { id: number; number: string; name: string; organization: string; }
 interface Entry {
   id: number;
   work_date: string;
@@ -13,6 +14,7 @@ interface Entry {
   route_id: number;
   route_number: string;
   route_name: string;
+  route_organization?: string;
   max_graphs: number;
   bus_id: number | null;
   board_number: string | null;
@@ -21,6 +23,10 @@ interface Entry {
   driver_name: string | null;
   conductor_id: number | null;
   conductor_name: string | null;
+  terminal_id: number | null;
+  terminal_name: string | null;
+  terminal_number: string | null;
+  terminal_org: string | null;
 }
 
 function today() {
@@ -39,6 +45,7 @@ function handlePrint(date: string, entries: Entry[]) {
       <td>${e.board_number ?? "—"}${e.bus_model ? `<br/><small>${e.bus_model}</small>` : ""}</td>
       <td>${e.driver_name ?? "—"}</td>
       <td>${e.conductor_name ?? "—"}</td>
+      <td>${e.terminal_name ?? "—"}</td>
     </tr>
   `).join("");
 
@@ -65,7 +72,7 @@ function handlePrint(date: string, entries: Entry[]) {
   <p class="sub">RoutePayroll — сформировано ${new Date().toLocaleString("ru")}</p>
   <table>
     <thead>
-      <tr><th>Маршрут / График</th><th>Бортовой №</th><th>Водитель</th><th>Кондуктор</th></tr>
+      <tr><th>Маршрут / График</th><th>Бортовой №</th><th>Водитель</th><th>Кондуктор</th><th>Терминал</th></tr>
     </thead>
     <tbody>${rows}</tbody>
   </table>
@@ -88,18 +95,20 @@ export default function SchedulePage() {
   const [buses, setBuses] = useState<Bus[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [conductors, setConductors] = useState<Conductor[]>([]);
+  const [terminals, setTerminals] = useState<Terminal[]>([]);
   const [loading, setLoading] = useState(false);
   const [addRouteId, setAddRouteId] = useState<string>("");
   const [addGraphNum, setAddGraphNum] = useState<string>("");
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
-    Promise.all([api.getRoutes(), api.getBuses(), api.getDrivers(), api.getConductors()])
-      .then(([r, b, d, c]) => {
+    Promise.all([api.getRoutes(), api.getBuses(), api.getDrivers(), api.getConductors(), api.getTerminals()])
+      .then(([r, b, d, c, t]) => {
         setRoutes(Array.isArray(r) ? r : []);
         setBuses(Array.isArray(b) ? b : []);
         setDrivers(Array.isArray(d) ? d : []);
         setConductors(Array.isArray(c) ? c : []);
+        setTerminals(Array.isArray(t) ? t : []);
       });
   }, []);
 
@@ -112,7 +121,6 @@ export default function SchedulePage() {
 
   useEffect(() => { loadSchedule(date); }, [date]);
 
-  // При выборе маршрута — автоматически подставить следующий свободный график
   const handleRouteChange = (routeId: string) => {
     setAddRouteId(routeId);
     if (!routeId) { setAddGraphNum(""); return; }
@@ -148,6 +156,7 @@ export default function SchedulePage() {
       bus_id: field === "bus_id" ? (value ? Number(value) : null) : entry.bus_id,
       driver_id: field === "driver_id" ? (value ? Number(value) : null) : entry.driver_id,
       conductor_id: field === "conductor_id" ? (value ? Number(value) : null) : entry.conductor_id,
+      terminal_id: field === "terminal_id" ? (value ? Number(value) : null) : entry.terminal_id,
     });
     await loadSchedule(date);
   };
@@ -158,7 +167,6 @@ export default function SchedulePage() {
     await loadSchedule(date);
   };
 
-  // Доступные графики для выбранного маршрута
   const selectedRoute = routes.find(r => String(r.id) === addRouteId);
   const usedGraphsForRoute = new Set(
     entries.filter(e => e.route_id === Number(addRouteId)).map(e => e.graph_number)
@@ -167,7 +175,14 @@ export default function SchedulePage() {
     ? Array.from({ length: selectedRoute.max_graphs }, (_, i) => i + 1).filter(g => !usedGraphsForRoute.has(g))
     : [];
 
-  // Группируем записи по маршруту для отображения
+  // Группируем терминалы по организациям
+  const terminalsByOrg = terminals.reduce<Record<string, Terminal[]>>((acc, t) => {
+    if (!acc[t.organization]) acc[t.organization] = [];
+    acc[t.organization].push(t);
+    return acc;
+  }, {});
+
+  // Группируем записи по маршруту
   const groupedEntries: { route: Entry; items: Entry[] }[] = [];
   const seen = new Map<number, Entry[]>();
   for (const e of entries) {
@@ -238,76 +253,87 @@ export default function SchedulePage() {
         <div className="text-neutral-400 text-sm py-8 text-center">Нет маршрутов на этот день — добавьте выше</div>
       ) : (
         <div className="flex flex-col gap-3">
-          {groupedEntries.map(({ route, items }) => (
-            <div key={route.route_id} className="border border-neutral-200 rounded overflow-hidden">
-              {/* Заголовок маршрута */}
-              <div className="bg-neutral-100 px-4 py-2 flex items-center gap-2">
-                <span className="font-bold text-sm text-neutral-800 bg-white px-2 py-0.5 rounded border border-neutral-200">
-                  № {route.route_number}
-                </span>
-                {route.route_name && <span className="text-neutral-500 text-xs">{route.route_name}</span>}
-                <span className="text-neutral-400 text-xs ml-1">{items.length} из {route.max_graphs} гр.</span>
-              </div>
+          {groupedEntries.map(({ route, items }) => {
+            const orgTerminals = terminalsByOrg[route.route_organization ?? ""] ?? terminals;
+            return (
+              <div key={route.route_id} className="border border-neutral-200 rounded overflow-hidden">
+                <div className="bg-neutral-100 px-4 py-2 flex items-center gap-2">
+                  <span className="font-bold text-sm text-neutral-800 bg-white px-2 py-0.5 rounded border border-neutral-200">
+                    № {route.route_number}
+                  </span>
+                  {route.route_name && <span className="text-neutral-500 text-xs">{route.route_name}</span>}
+                  <span className="text-neutral-400 text-xs ml-1">{items.length} из {route.max_graphs} гр.</span>
+                </div>
 
-              {/* Строки графиков */}
-              <table className="w-full text-sm">
-                <thead className="bg-neutral-50 text-neutral-500 uppercase text-xs tracking-wide border-b border-neutral-100">
-                  <tr>
-                    <th className="px-4 py-2 text-left w-24">График</th>
-                    <th className="px-4 py-2 text-left">Бортовой №</th>
-                    <th className="px-4 py-2 text-left">Водитель</th>
-                    <th className="px-4 py-2 text-left">Кондуктор</th>
-                    <th className="px-4 py-2 w-10"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map(entry => (
-                    <tr key={entry.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition-colors">
-                      <td className="px-4 py-2">
-                        {entry.graph_number
-                          ? <span className="inline-block bg-neutral-900 text-white text-xs font-semibold px-2 py-0.5 rounded">гр. {entry.graph_number}</span>
-                          : <span className="text-neutral-300 text-xs">—</span>
-                        }
-                      </td>
-                      <td className="px-4 py-2">
-                        <select value={entry.bus_id ?? ""} onChange={e => handleUpdate(entry, "bus_id", e.target.value)}
-                          className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500">
-                          <option value="">— не назначен —</option>
-                          {buses.map(b => (
-                            <option key={b.id} value={b.id}>№ {b.board_number}{b.model ? ` (${b.model})` : ""}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2">
-                        <select value={entry.driver_id ?? ""} onChange={e => handleUpdate(entry, "driver_id", e.target.value)}
-                          className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500">
-                          <option value="">— не назначен —</option>
-                          {drivers.map(d => (
-                            <option key={d.id} value={d.id}>{d.full_name}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2">
-                        <select value={entry.conductor_id ?? ""} onChange={e => handleUpdate(entry, "conductor_id", e.target.value)}
-                          className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500">
-                          <option value="">— не назначен —</option>
-                          {conductors.map(c => (
-                            <option key={c.id} value={c.id}>{c.full_name}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2 text-center">
-                        <button onClick={() => handleDelete(entry.id)}
-                          className="text-neutral-300 hover:text-red-500 transition-colors cursor-pointer">
-                          <Icon name="Trash2" size={14} />
-                        </button>
-                      </td>
+                <table className="w-full text-sm">
+                  <thead className="bg-neutral-50 text-neutral-500 uppercase text-xs tracking-wide border-b border-neutral-100">
+                    <tr>
+                      <th className="px-4 py-2 text-left w-24">График</th>
+                      <th className="px-4 py-2 text-left">Бортовой №</th>
+                      <th className="px-4 py-2 text-left">Водитель</th>
+                      <th className="px-4 py-2 text-left">Кондуктор</th>
+                      <th className="px-4 py-2 text-left">Терминал</th>
+                      <th className="px-4 py-2 w-10"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))}
+                  </thead>
+                  <tbody>
+                    {items.map(entry => (
+                      <tr key={entry.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition-colors">
+                        <td className="px-4 py-2">
+                          {entry.graph_number
+                            ? <span className="inline-block bg-neutral-900 text-white text-xs font-semibold px-2 py-0.5 rounded">гр. {entry.graph_number}</span>
+                            : <span className="text-neutral-300 text-xs">—</span>
+                          }
+                        </td>
+                        <td className="px-4 py-2">
+                          <select value={entry.bus_id ?? ""} onChange={e => handleUpdate(entry, "bus_id", e.target.value)}
+                            className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500">
+                            <option value="">— не назначен —</option>
+                            {buses.map(b => (
+                              <option key={b.id} value={b.id}>№ {b.board_number}{b.model ? ` (${b.model})` : ""}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-2">
+                          <select value={entry.driver_id ?? ""} onChange={e => handleUpdate(entry, "driver_id", e.target.value)}
+                            className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500">
+                            <option value="">— не назначен —</option>
+                            {drivers.map(d => (
+                              <option key={d.id} value={d.id}>{d.full_name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-2">
+                          <select value={entry.conductor_id ?? ""} onChange={e => handleUpdate(entry, "conductor_id", e.target.value)}
+                            className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500">
+                            <option value="">— не назначен —</option>
+                            {conductors.map(c => (
+                              <option key={c.id} value={c.id}>{c.full_name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-2">
+                          <select value={entry.terminal_id ?? ""} onChange={e => handleUpdate(entry, "terminal_id", e.target.value)}
+                            className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500">
+                            <option value="">— не выбран —</option>
+                            {orgTerminals.map(t => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-2 text-center">
+                          <button onClick={() => handleDelete(entry.id)}
+                            className="text-neutral-300 hover:text-red-500 transition-colors cursor-pointer">
+                            <Icon name="Trash2" size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

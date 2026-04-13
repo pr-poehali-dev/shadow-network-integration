@@ -8,6 +8,7 @@ interface PersonSummary {
   shifts: number;
   dates: string[] | null;
   route_numbers: string[] | null;
+  terminal_names: string[] | null;
 }
 
 interface BusSummary {
@@ -17,6 +18,7 @@ interface BusSummary {
   shifts: number;
   dates: string[] | null;
   route_numbers: string[] | null;
+  terminal_names: string[] | null;
 }
 
 interface Summary {
@@ -39,7 +41,7 @@ function printSummary(year: number, month: number, data: Summary) {
   const renderPersonTable = (rows: PersonSummary[], role: string) => `
     <h3>${role}</h3>
     <table>
-      <thead><tr><th>ФИО</th><th>Выходов</th><th>Даты и маршруты</th></tr></thead>
+      <thead><tr><th>ФИО</th><th>Выходов</th><th>Даты, маршруты и терминалы</th></tr></thead>
       <tbody>
         ${rows.map(p => `
           <tr>
@@ -47,7 +49,11 @@ function printSummary(year: number, month: number, data: Summary) {
             <td style="text-align:center">${p.shifts}</td>
             <td class="details">${
               p.dates && p.dates[0]
-                ? p.dates.map((d, i) => `${formatDate(d)}${p.route_numbers?.[i] ? ` (м.${p.route_numbers[i]})` : ""}`).join(", ")
+                ? p.dates.map((d, i) => {
+                    const route = p.route_numbers?.[i] ? ` (м.${p.route_numbers[i]})` : "";
+                    const term = p.terminal_names?.[i] ? ` [${p.terminal_names[i]}]` : "";
+                    return `${formatDate(d)}${route}${term}`;
+                  }).join(", ")
                 : "—"
             }</td>
           </tr>
@@ -59,7 +65,7 @@ function printSummary(year: number, month: number, data: Summary) {
   const renderBusTable = (rows: BusSummary[]) => `
     <h3>Транспортные средства</h3>
     <table>
-      <thead><tr><th>Борт №</th><th>Модель</th><th>Выходов</th><th>Даты и маршруты</th></tr></thead>
+      <thead><tr><th>Борт №</th><th>Модель</th><th>Выходов</th><th>Даты, маршруты и терминалы</th></tr></thead>
       <tbody>
         ${rows.map(b => `
           <tr>
@@ -68,7 +74,11 @@ function printSummary(year: number, month: number, data: Summary) {
             <td style="text-align:center">${b.shifts}</td>
             <td class="details">${
               b.dates && b.dates[0]
-                ? b.dates.map((d, i) => `${formatDate(d)}${b.route_numbers?.[i] ? ` (м.${b.route_numbers[i]})` : ""}`).join(", ")
+                ? b.dates.map((d, i) => {
+                    const route = b.route_numbers?.[i] ? ` (м.${b.route_numbers[i]})` : "";
+                    const term = b.terminal_names?.[i] ? ` [${b.terminal_names[i]}]` : "";
+                    return `${formatDate(d)}${route}${term}`;
+                  }).join(", ")
                 : "—"
             }</td>
           </tr>
@@ -227,6 +237,9 @@ export default function SummaryPage() {
                                 {bus.route_numbers?.[i] && (
                                   <span className="ml-0.5 text-neutral-400">(м.{bus.route_numbers[i]})</span>
                                 )}
+                                {bus.terminal_names?.[i] && (
+                                  <span className="ml-0.5 text-neutral-400">[{bus.terminal_names[i]}]</span>
+                                )}
                               </span>
                             ))
                           : <span className="text-neutral-300">—</span>
@@ -252,7 +265,7 @@ export default function SummaryPage() {
                 <tr>
                   <th className="px-4 py-3 text-left">ФИО</th>
                   <th className="px-4 py-3 text-center w-20">Выходов</th>
-                  <th className="px-4 py-3 text-left">Даты и маршруты</th>
+                  <th className="px-4 py-3 text-left">Даты, маршруты и терминалы</th>
                 </tr>
               </thead>
               <tbody>
@@ -273,6 +286,9 @@ export default function SummaryPage() {
                               {formatDate(d)}
                               {person.route_numbers?.[i] && (
                                 <span className="ml-0.5 text-neutral-400">(м.{person.route_numbers[i]})</span>
+                              )}
+                              {person.terminal_names?.[i] && (
+                                <span className="ml-0.5 text-neutral-400">[{person.terminal_names[i]}]</span>
                               )}
                             </span>
                           ))

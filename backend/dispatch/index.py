@@ -111,6 +111,14 @@ def handler(event: dict, context) -> dict:
                 rows = list(cur.fetchall())
                 return ok(rows)
 
+    # --- TERMINALS ---
+    if resource == "terminals":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    cur.execute("SELECT * FROM terminals ORDER BY organization, CAST(number AS INTEGER)")
+                    return ok(list(cur.fetchall()))
+
     # --- BUSES ---
     if resource == "buses":
         with get_conn() as conn:
@@ -202,15 +210,19 @@ def handler(event: dict, context) -> dict:
                 SEL = """
                     SELECT se.id, se.work_date, se.graph_number,
                            r.id as route_id, r.number as route_number, r.name as route_name,
+                           r.organization as route_organization,
                            r.max_graphs,
                            b.id as bus_id, b.board_number, b.model as bus_model,
                            d.id as driver_id, d.full_name as driver_name,
-                           c.id as conductor_id, c.full_name as conductor_name
+                           c.id as conductor_id, c.full_name as conductor_name,
+                           t.id as terminal_id, t.number as terminal_number,
+                           t.name as terminal_name, t.organization as terminal_org
                     FROM schedule_entries se
                     JOIN routes r ON r.id = se.route_id
                     LEFT JOIN buses b ON b.id = se.bus_id
                     LEFT JOIN drivers d ON d.id = se.driver_id
                     LEFT JOIN conductors c ON c.id = se.conductor_id
+                    LEFT JOIN terminals t ON t.id = se.terminal_id
                 """
                 if method == "GET":
                     date = params.get("date")
@@ -224,8 +236,8 @@ def handler(event: dict, context) -> dict:
 
                 if method == "POST":
                     cur.execute("""
-                        INSERT INTO schedule_entries (work_date, route_id, graph_number, bus_id, driver_id, conductor_id)
-                        VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+                        INSERT INTO schedule_entries (work_date, route_id, graph_number, bus_id, driver_id, conductor_id, terminal_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
                     """, (
                         body.get("work_date"),
                         body.get("route_id"),
@@ -233,6 +245,7 @@ def handler(event: dict, context) -> dict:
                         body.get("bus_id") or None,
                         body.get("driver_id") or None,
                         body.get("conductor_id") or None,
+                        body.get("terminal_id") or None,
                     ))
                     conn.commit()
                     new_id = cur.fetchone()["id"]
@@ -242,13 +255,14 @@ def handler(event: dict, context) -> dict:
                 if method == "PUT":
                     cur.execute("""
                         UPDATE schedule_entries
-                        SET bus_id=%s, driver_id=%s, conductor_id=%s, graph_number=%s
+                        SET bus_id=%s, driver_id=%s, conductor_id=%s, graph_number=%s, terminal_id=%s
                         WHERE id=%s
                     """, (
                         body.get("bus_id") or None,
                         body.get("driver_id") or None,
                         body.get("conductor_id") or None,
                         body.get("graph_number") or None,
+                        body.get("terminal_id") or None,
                         body.get("id")
                     ))
                     conn.commit()
@@ -364,13 +378,15 @@ def handler(event: dict, context) -> dict:
                         d.full_name,
                         COUNT(se.id) AS shifts,
                         ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
-                        ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers
+                        ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers,
+                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names
                     FROM drivers d
                     LEFT JOIN schedule_entries se
                         ON se.driver_id = d.id
                         AND EXTRACT(YEAR FROM se.work_date) = %s
                         AND EXTRACT(MONTH FROM se.work_date) = %s
                     LEFT JOIN routes r ON r.id = se.route_id
+                    LEFT JOIN terminals t ON t.id = se.terminal_id
                     GROUP BY d.id, d.full_name
                     ORDER BY d.full_name
                 """, (year, month))
@@ -383,13 +399,15 @@ def handler(event: dict, context) -> dict:
                         c.full_name,
                         COUNT(se.id) AS shifts,
                         ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
-                        ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers
+                        ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers,
+                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names
                     FROM conductors c
                     LEFT JOIN schedule_entries se
                         ON se.conductor_id = c.id
                         AND EXTRACT(YEAR FROM se.work_date) = %s
                         AND EXTRACT(MONTH FROM se.work_date) = %s
                     LEFT JOIN routes r ON r.id = se.route_id
+                    LEFT JOIN terminals t ON t.id = se.terminal_id
                     GROUP BY c.id, c.full_name
                     ORDER BY c.full_name
                 """, (year, month))
@@ -403,13 +421,15 @@ def handler(event: dict, context) -> dict:
                         b.model,
                         COUNT(se.id) AS shifts,
                         ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
-                        ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers
+                        ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers,
+                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names
                     FROM buses b
                     LEFT JOIN schedule_entries se
                         ON se.bus_id = b.id
                         AND EXTRACT(YEAR FROM se.work_date) = %s
                         AND EXTRACT(MONTH FROM se.work_date) = %s
                     LEFT JOIN routes r ON r.id = se.route_id
+                    LEFT JOIN terminals t ON t.id = se.terminal_id
                     GROUP BY b.id, b.board_number, b.model
                     ORDER BY b.board_number
                 """, (year, month))
