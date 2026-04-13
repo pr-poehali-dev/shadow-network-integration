@@ -231,4 +231,53 @@ def handler(event: dict, context) -> dict:
                     conn.commit()
                     return ok({"deleted": True})
 
+    # --- SUMMARY: сводка смен за месяц ---
+    if resource == "summary":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                year = params.get("year")
+                month = params.get("month")
+                if not year or not month:
+                    return err("year and month required")
+
+                # Водители
+                cur.execute("""
+                    SELECT
+                        d.id,
+                        d.full_name,
+                        COUNT(se.id) AS shifts,
+                        ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
+                        ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers
+                    FROM drivers d
+                    LEFT JOIN schedule_entries se
+                        ON se.driver_id = d.id
+                        AND EXTRACT(YEAR FROM se.work_date) = %s
+                        AND EXTRACT(MONTH FROM se.work_date) = %s
+                    LEFT JOIN routes r ON r.id = se.route_id
+                    GROUP BY d.id, d.full_name
+                    ORDER BY d.full_name
+                """, (year, month))
+                drivers = list(cur.fetchall())
+
+                # Кондукторы
+                cur.execute("""
+                    SELECT
+                        c.id,
+                        c.full_name,
+                        COUNT(se.id) AS shifts,
+                        ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
+                        ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers
+                    FROM conductors c
+                    LEFT JOIN schedule_entries se
+                        ON se.conductor_id = c.id
+                        AND EXTRACT(YEAR FROM se.work_date) = %s
+                        AND EXTRACT(MONTH FROM se.work_date) = %s
+                    LEFT JOIN routes r ON r.id = se.route_id
+                    GROUP BY c.id, c.full_name
+                    ORDER BY c.full_name
+                """, (year, month))
+                conductors = list(cur.fetchall())
+
+                return ok({"drivers": drivers, "conductors": conductors})
+
     return err("Not found", 404)

@@ -43,4 +43,7 @@ export const api = {
   createScheduleEntry: (data: object) => req("POST", "schedule", data),
   updateScheduleEntry: (data: object) => req("PUT", "schedule", data),
   deleteScheduleEntry: (id: number) => req("DELETE", "schedule", undefined, { id: String(id) }),
+
+  // Summary
+  getSummary: (year: number, month: number) => req("GET", "summary", undefined, { year: String(year), month: String(month) }),
 };
