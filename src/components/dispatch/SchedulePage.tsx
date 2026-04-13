@@ -489,15 +489,13 @@ export default function SchedulePage() {
           })}
 
           {entries.length > 0 && (
-            <div className="border border-neutral-300 rounded bg-neutral-900 text-white px-5 py-4 flex flex-wrap gap-6 items-center">
-              <span className="font-bold text-sm uppercase tracking-wide">Итого за день</span>
-              <div className="flex gap-4 text-sm">
-                <span>Наличные: <span className="font-semibold">{fmtMoney(dayTotalCash)}</span></span>
-                <span>Безнал.: <span className="font-semibold">{fmtMoney(dayTotalCashless)}</span></span>
-              </div>
-              <span className="text-lg font-bold">{fmtMoney(dayTotalRevenue)}</span>
-              <span className="text-sm">Билетов: <span className="font-bold">{dayTotalTickets}</span></span>
-              {dayTotalFuel > 0 && <span className="text-sm">ДТ: <span className="font-bold">{dayTotalFuel.toFixed(1)} л</span></span>}
+            <div className="border border-neutral-300 rounded bg-neutral-900 text-white px-5 py-3 flex flex-wrap items-center gap-4 text-sm">
+              <span className="font-bold uppercase tracking-wide">Итого за день:</span>
+              {dayTotalRevenue > 0 && <span className="text-lg font-bold">{Math.round(dayTotalRevenue)} ₽</span>}
+              {dayTotalCash > 0 && <span>нал. {Math.round(dayTotalCash)} ₽</span>}
+              {dayTotalCashless > 0 && <span>безнал. {Math.round(dayTotalCashless)} ₽</span>}
+              {dayTotalTickets > 0 && <span>{dayTotalTickets} бил.</span>}
+              {dayTotalFuel > 0 && <span>{dayTotalFuel.toFixed(1)} л</span>}
             </div>
           )}
         </div>
