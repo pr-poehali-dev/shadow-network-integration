@@ -469,22 +469,16 @@ export default function SchedulePage() {
                       const rFuel = items.reduce((s, e) => s + Number(e.fuel_spent ?? 0), 0);
                       return (
                         <tr className="bg-neutral-100 border-t border-neutral-200 font-semibold text-xs text-neutral-700">
-                          <td className="px-4 py-2" colSpan={5}>
-                            Итого м. {route.route_number}
+                          <td className="px-4 py-2" colSpan={8}>
+                            <span className="inline-flex flex-wrap items-center gap-3">
+                              <span>Итого м. {route.route_number}:</span>
+                              {rTotal > 0 && <span>{Math.round(rTotal)} ₽</span>}
+                              {rCash > 0 && <span className="font-normal text-neutral-500">нал. {Math.round(rCash)} ₽</span>}
+                              {rCashless > 0 && <span className="font-normal text-neutral-500">безнал. {Math.round(rCashless)} ₽</span>}
+                              {rTickets > 0 && <span>{rTickets} бил.</span>}
+                              {rFuel > 0 && <span className="font-normal text-neutral-500">{rFuel.toFixed(1)} л</span>}
+                            </span>
                           </td>
-                          <td className="px-4 py-2 text-right">{rFuel ? rFuel.toFixed(1) + " л" : ""}</td>
-                          <td className="px-4 py-2 text-right">
-                            {rTotal ? (
-                              <span>
-                                {fmtMoney(rTotal)}
-                                <span className="font-normal text-neutral-500 ml-1">
-                                  (нал. {fmtMoney(rCash)}, безнал. {fmtMoney(rCashless)})
-                                </span>
-                                <span className="ml-2">{rTickets} бил.</span>
-                              </span>
-                            ) : ""}
-                          </td>
-                          <td></td>
                         </tr>
                       );
                     })()}
