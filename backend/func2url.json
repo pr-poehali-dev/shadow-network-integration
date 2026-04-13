@@ -1,4 +1,5 @@
 {
+  "auth": "https://functions.poehali.dev/ffa989a9-7b30-4c2a-814b-0c251aa830a6",
   "bus-docs": "https://functions.poehali.dev/f5dab932-b9b8-411b-8dae-1739a99ce665",
   "dispatch": "https://functions.poehali.dev/eddcaeff-a568-4560-b649-6d3a1ba1a4db"
 }

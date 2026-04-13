@@ -1,0 +1,6 @@
+{"tests": [
+  {"name": "Login missing fields", "method": "POST", "path": "/?resource=login", "body": {}, "expectedStatus": 400, "expectedBody": {"error": "string"}, "bodyMatcher": "partial"},
+  {"name": "Login wrong creds", "method": "POST", "path": "/?resource=login", "body": {"username": "nobody", "password": "wrong"}, "expectedStatus": 401, "expectedBody": {"error": "string"}, "bodyMatcher": "partial"},
+  {"name": "Me unauthorized", "method": "GET", "path": "/?resource=me", "expectedStatus": 401, "expectedBody": {"error": "string"}, "bodyMatcher": "partial"},
+  {"name": "Users unauthorized", "method": "GET", "path": "/?resource=users", "expectedStatus": 403, "expectedBody": {"error": "string"}, "bodyMatcher": "partial"}
+]}

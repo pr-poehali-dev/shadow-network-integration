@@ -1,5 +1,10 @@
 const BASE = "https://functions.poehali.dev/eddcaeff-a568-4560-b649-6d3a1ba1a4db";
 const DOCS_BASE = "https://functions.poehali.dev/f5dab932-b9b8-411b-8dae-1739a99ce665";
+const AUTH_BASE = "https://functions.poehali.dev/ffa989a9-7b30-4c2a-814b-0c251aa830a6";
+
+function getToken() {
+  return localStorage.getItem("auth_token") || "";
+}
 
 async function req(method: string, resource: string, body?: object, params?: Record<string, string>) {
   const url = new URL(BASE);
@@ -8,7 +13,7 @@ async function req(method: string, resource: string, body?: object, params?: Rec
 
   const res = await fetch(url.toString(), {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
     body: body ? JSON.stringify(body) : undefined,
   });
   return res.json();
@@ -21,13 +26,34 @@ async function docsReq(method: string, resource: string, body?: object, params?:
 
   const res = await fetch(url.toString(), {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res.json();
+}
+
+async function authReq(method: string, resource: string, body?: object, params?: Record<string, string>) {
+  const url = new URL(AUTH_BASE);
+  url.searchParams.set("resource", resource);
+  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+
+  const res = await fetch(url.toString(), {
+    method,
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
     body: body ? JSON.stringify(body) : undefined,
   });
   return res.json();
 }
 
 export const api = {
+  // Auth
+  login: (username: string, password: string) => authReq("POST", "login", { username, password }),
+  logout: () => authReq("POST", "logout"),
+  getMe: () => authReq("GET", "me"),
+  getUsers: () => authReq("GET", "users"),
+  createUser: (data: { username: string; password: string; full_name: string; role: string }) => authReq("POST", "users", data),
+  updateUser: (id: number, data: object) => authReq("PUT", "users", data, { id: String(id) }),
+
   // Settings
   getSettings: () => req("GET", "settings"),
   updateSetting: (key: string, value: string) => req("PUT", "settings", { key, value }),

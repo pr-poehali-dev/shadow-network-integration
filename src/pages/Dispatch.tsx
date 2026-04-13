@@ -1,45 +1,70 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { useAuth, AuthProvider, ROLE_LABELS, Role } from "@/lib/auth";
 import CatalogPage from "@/components/dispatch/CatalogPage";
 import SchedulePage from "@/components/dispatch/SchedulePage";
 import SummaryPage from "@/components/dispatch/SummaryPage";
 import BusDocsPage from "@/components/dispatch/BusDocsPage";
 import RoutesPage from "@/components/dispatch/RoutesPage";
 import SettingsPage from "@/components/dispatch/SettingsPage";
+import UsersPage from "@/components/dispatch/UsersPage";
+import LoginPage from "@/components/dispatch/LoginPage";
 import Icon from "@/components/ui/icon";
 
-type Tab = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors" | "terminals" | "settings";
+type Tab = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors" | "terminals" | "settings" | "users";
 
-const tabs: { id: Tab; label: string; icon: string }[] = [
-  { id: "schedule", label: "Расписание", icon: "CalendarDays" },
-  { id: "summary", label: "Сводка смен", icon: "BarChart2" },
-  { id: "busdocs", label: "Документы ТС", icon: "FileText" },
-  { id: "routes", label: "Маршруты", icon: "Map" },
-  { id: "buses", label: "Автобусы", icon: "Bus" },
-  { id: "drivers", label: "Водители", icon: "User" },
-  { id: "conductors", label: "Кондукторы", icon: "Users" },
-  { id: "terminals", label: "Терминалы", icon: "MonitorSmartphone" },
-  { id: "settings", label: "Настройки", icon: "Settings" },
+const allTabs: { id: Tab; label: string; icon: string; roles: Role[] }[] = [
+  { id: "schedule",   label: "Расписание",    icon: "CalendarDays",      roles: ["admin", "dispatcher"] },
+  { id: "summary",    label: "Сводка смен",   icon: "BarChart2",         roles: ["admin", "dispatcher", "accountant"] },
+  { id: "busdocs",    label: "Документы ТС",  icon: "FileText",          roles: ["admin", "dispatcher", "mechanic"] },
+  { id: "routes",     label: "Маршруты",      icon: "Map",               roles: ["admin"] },
+  { id: "buses",      label: "Автобусы",      icon: "Bus",               roles: ["admin", "mechanic"] },
+  { id: "drivers",    label: "Водители",      icon: "User",              roles: ["admin", "hr"] },
+  { id: "conductors", label: "Кондукторы",    icon: "Users",             roles: ["admin", "hr"] },
+  { id: "terminals",  label: "Терминалы",     icon: "MonitorSmartphone", roles: ["admin"] },
+  { id: "users",      label: "Пользователи",  icon: "Shield",            roles: ["admin"] },
+  { id: "settings",   label: "Настройки",     icon: "Settings",          roles: ["admin"] },
 ];
 
-export default function Dispatch() {
+function DispatchApp() {
+  const { user, loading, logout } = useAuth();
   const [tab, setTab] = useState<Tab>("schedule");
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center text-neutral-500 text-sm">Загрузка...</div>;
+  }
+
+  if (!user) return <LoginPage />;
+
+  const visibleTabs = allTabs.filter(t => t.roles.includes(user.role as Role));
+  const currentTab = visibleTabs.find(t => t.id === tab) ? tab : visibleTabs[0]?.id ?? "schedule";
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <header className="border-b border-neutral-200 px-6 py-4 flex items-center gap-3">
+      <header className="border-b border-neutral-200 px-6 py-3 flex items-center gap-3">
         <Icon name="Bus" size={20} className="text-neutral-700" />
-        <span className="font-bold text-neutral-900 uppercase tracking-wide text-sm">RoutePayroll — Диспетчер</span>
+        <span className="font-bold text-neutral-900 uppercase tracking-wide text-sm">RoutePayroll</span>
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-xs text-neutral-500">
+            {user.full_name}
+            <span className="ml-1.5 px-1.5 py-0.5 bg-neutral-100 rounded text-neutral-600">{ROLE_LABELS[user.role as Role]}</span>
+          </span>
+          <button onClick={logout}
+            className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer flex items-center gap-1">
+            <Icon name="LogOut" size={13} />
+            Выйти
+          </button>
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
         <nav className="w-52 border-r border-neutral-200 flex flex-col py-4 gap-1 shrink-0">
-          {tabs.map(t => (
+          {visibleTabs.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors cursor-pointer ${
-                tab === t.id
+                currentTab === t.id
                   ? "bg-neutral-900 text-white"
                   : "text-neutral-600 hover:bg-neutral-100"
               }`}
@@ -51,12 +76,12 @@ export default function Dispatch() {
         </nav>
 
         <main className="flex-1 p-8 overflow-y-auto">
-          {tab === "schedule" && <SchedulePage />}
-          {tab === "summary" && <SummaryPage />}
-          {tab === "busdocs" && <BusDocsPage />}
-          {tab === "routes" && <RoutesPage />}
+          {currentTab === "schedule" && <SchedulePage />}
+          {currentTab === "summary" && <SummaryPage />}
+          {currentTab === "busdocs" && <BusDocsPage />}
+          {currentTab === "routes" && <RoutesPage />}
 
-          {tab === "buses" && (
+          {currentTab === "buses" && (
             <CatalogPage
               title="Автобусы"
               fields={[
@@ -82,7 +107,7 @@ export default function Dispatch() {
             />
           )}
 
-          {tab === "drivers" && (
+          {currentTab === "drivers" && (
             <CatalogPage
               title="Водители"
               fields={[
@@ -107,7 +132,7 @@ export default function Dispatch() {
             />
           )}
 
-          {tab === "conductors" && (
+          {currentTab === "conductors" && (
             <CatalogPage
               title="Кондукторы"
               fields={[
@@ -130,7 +155,7 @@ export default function Dispatch() {
             />
           )}
 
-          {tab === "terminals" && (
+          {currentTab === "terminals" && (
             <CatalogPage
               title="Терминалы"
               fields={[
@@ -151,9 +176,18 @@ export default function Dispatch() {
             />
           )}
 
-          {tab === "settings" && <SettingsPage />}
+          {currentTab === "users" && <UsersPage />}
+          {currentTab === "settings" && <SettingsPage />}
         </main>
       </div>
     </div>
+  );
+}
+
+export default function Dispatch() {
+  return (
+    <AuthProvider>
+      <DispatchApp />
+    </AuthProvider>
   );
 }
