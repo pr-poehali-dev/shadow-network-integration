@@ -34,6 +34,13 @@
       "path": "/?resource=schedule",
       "expectedStatus": 400,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET graphs missing params",
+      "method": "GET",
+      "path": "/?resource=graphs",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
     }
   ]
 }

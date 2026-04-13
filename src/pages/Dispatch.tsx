@@ -4,6 +4,7 @@ import CatalogPage from "@/components/dispatch/CatalogPage";
 import SchedulePage from "@/components/dispatch/SchedulePage";
 import SummaryPage from "@/components/dispatch/SummaryPage";
 import BusDocsPage from "@/components/dispatch/BusDocsPage";
+import RoutesPage from "@/components/dispatch/RoutesPage";
 import Icon from "@/components/ui/icon";
 
 type Tab = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors";
@@ -51,25 +52,7 @@ export default function Dispatch() {
           {tab === "summary" && <SummaryPage />}
           {tab === "busdocs" && <BusDocsPage />}
 
-          {tab === "routes" && (
-            <CatalogPage
-              title="Маршруты"
-              fields={[
-                { key: "number", label: "Номер", placeholder: "Номер маршрута (напр. 15А)" },
-                { key: "name", label: "Название", placeholder: "Название (необязательно)" },
-              ]}
-              fetchFn={api.getRoutes}
-              createFn={data => api.createRoute(data as { number: string; name: string })}
-              updateFn={(id, data) => api.updateRoute(id, data as { number: string; name: string })}
-              deleteFn={api.deleteRoute}
-              renderRow={item => (
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-neutral-900 bg-neutral-100 px-2 py-0.5 rounded text-xs">{String(item.number)}</span>
-                  <span className="text-neutral-600">{String(item.name || "—")}</span>
-                </div>
-              )}
-            />
-          )}
+          {tab === "routes" && <RoutesPage />}
 
           {tab === "buses" && (
             <CatalogPage

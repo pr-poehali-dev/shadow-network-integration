@@ -61,6 +61,13 @@ export const api = {
   // Summary
   getSummary: (year: number, month: number) => req("GET", "summary", undefined, { year: String(year), month: String(month) }),
 
+  // Route graphs
+  getRouteGraphs: (routeId: number, workDate: string) =>
+    req("GET", "graphs", undefined, { route_id: String(routeId), work_date: workDate }),
+  saveRouteGraph: (data: object) => req("POST", "graphs", data),
+  updateRouteGraph: (id: number, data: object) => req("PUT", "graphs", data, { id: String(id) }),
+  deleteRouteGraph: (id: number) => req("DELETE", "graphs", undefined, { id: String(id) }),
+
   // Bus documents
   getBusDocs: (busId: number) => docsReq("GET", "docs", undefined, { bus_id: String(busId) }),
   getAlerts: (days?: number) => docsReq("GET", "alerts", undefined, { days: String(days ?? 30) }),

@@ -231,6 +231,94 @@ def handler(event: dict, context) -> dict:
                     conn.commit()
                     return ok({"deleted": True})
 
+    # --- ROUTE GRAPHS ---
+    if resource == "graphs":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    route_id = params.get("route_id")
+                    work_date = params.get("work_date")
+                    if not route_id or not work_date:
+                        return err("route_id and work_date required")
+                    cur.execute("""
+                        SELECT * FROM route_graphs
+                        WHERE route_id = %s AND work_date = %s
+                        ORDER BY graph_number
+                    """, (route_id, work_date))
+                    return ok(list(cur.fetchall()))
+
+                if method == "POST":
+                    cur.execute("""
+                        INSERT INTO route_graphs
+                          (route_id, graph_number, work_date, board_number, gov_number,
+                           driver_name, conductor_name, trips_planned, trips_actual,
+                           shortage_reason, departure_time, arrival_time, notes)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        ON CONFLICT (route_id, graph_number, work_date)
+                        DO UPDATE SET
+                          board_number=EXCLUDED.board_number,
+                          gov_number=EXCLUDED.gov_number,
+                          driver_name=EXCLUDED.driver_name,
+                          conductor_name=EXCLUDED.conductor_name,
+                          trips_planned=EXCLUDED.trips_planned,
+                          trips_actual=EXCLUDED.trips_actual,
+                          shortage_reason=EXCLUDED.shortage_reason,
+                          departure_time=EXCLUDED.departure_time,
+                          arrival_time=EXCLUDED.arrival_time,
+                          notes=EXCLUDED.notes,
+                          updated_at=NOW()
+                        RETURNING *
+                    """, (
+                        body.get("route_id"),
+                        body.get("graph_number"),
+                        body.get("work_date"),
+                        body.get("board_number") or None,
+                        body.get("gov_number") or None,
+                        body.get("driver_name") or None,
+                        body.get("conductor_name") or None,
+                        body.get("trips_planned") or None,
+                        body.get("trips_actual") or None,
+                        body.get("shortage_reason") or None,
+                        body.get("departure_time") or None,
+                        body.get("arrival_time") or None,
+                        body.get("notes") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    if not item_id:
+                        return err("id required")
+                    cur.execute("""
+                        UPDATE route_graphs SET
+                          board_number=%s, gov_number=%s, driver_name=%s,
+                          conductor_name=%s, trips_planned=%s, trips_actual=%s,
+                          shortage_reason=%s, departure_time=%s, arrival_time=%s,
+                          notes=%s, updated_at=NOW()
+                        WHERE id=%s RETURNING *
+                    """, (
+                        body.get("board_number") or None,
+                        body.get("gov_number") or None,
+                        body.get("driver_name") or None,
+                        body.get("conductor_name") or None,
+                        body.get("trips_planned") or None,
+                        body.get("trips_actual") or None,
+                        body.get("shortage_reason") or None,
+                        body.get("departure_time") or None,
+                        body.get("arrival_time") or None,
+                        body.get("notes") or None,
+                        item_id,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "DELETE":
+                    if not item_id:
+                        return err("id required")
+                    cur.execute("DELETE FROM route_graphs WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
     # --- SUMMARY: сводка смен за месяц ---
     if resource == "summary":
         with get_conn() as conn:
