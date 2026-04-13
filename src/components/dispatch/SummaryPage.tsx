@@ -21,10 +21,19 @@ interface BusSummary {
   terminal_names: string[] | null;
 }
 
+interface Totals {
+  total_cash: number;
+  total_cashless: number;
+  total_revenue: number;
+  total_tickets: number;
+  total_fuel: number;
+}
+
 interface Summary {
   drivers: PersonSummary[];
   conductors: PersonSummary[];
   buses: BusSummary[];
+  totals: Totals;
 }
 
 const MONTHS = [
@@ -304,6 +313,21 @@ export default function SummaryPage() {
             Итого выходов: <span className="font-semibold text-neutral-900">{totalShifts}</span>
           </div>
         </>
+      )}
+
+      {data?.totals && (
+        <div className="mt-6 border border-neutral-300 rounded bg-neutral-900 text-white px-5 py-4 flex flex-wrap gap-6 items-center">
+          <span className="font-bold text-sm uppercase tracking-wide">Итого за {MONTHS[month - 1].toLowerCase()}</span>
+          <div className="flex gap-4 text-sm">
+            <span>Наличные: <span className="font-semibold">{Number(data.totals.total_cash).toLocaleString("ru-RU", { minimumFractionDigits: 2 })} ₽</span></span>
+            <span>Безнал.: <span className="font-semibold">{Number(data.totals.total_cashless).toLocaleString("ru-RU", { minimumFractionDigits: 2 })} ₽</span></span>
+          </div>
+          <span className="text-lg font-bold">{Number(data.totals.total_revenue).toLocaleString("ru-RU", { minimumFractionDigits: 2 })} ₽</span>
+          <span className="text-sm">Билетов: <span className="font-bold">{Number(data.totals.total_tickets)}</span></span>
+          {Number(data.totals.total_fuel) > 0 && (
+            <span className="text-sm">ДТ: <span className="font-bold">{Number(data.totals.total_fuel).toFixed(1)} л</span></span>
+          )}
+        </div>
       )}
     </div>
   );

@@ -501,6 +501,19 @@ def handler(event: dict, context) -> dict:
                 """, (year, month))
                 buses = list(cur.fetchall())
 
-                return ok({"drivers": drivers, "conductors": conductors, "buses": buses})
+                cur.execute("""
+                    SELECT
+                        COALESCE(SUM(se.revenue_cash), 0) AS total_cash,
+                        COALESCE(SUM(se.revenue_cashless), 0) AS total_cashless,
+                        COALESCE(SUM(se.revenue_total), 0) AS total_revenue,
+                        COALESCE(SUM(se.tickets_sold), 0) AS total_tickets,
+                        COALESCE(SUM(se.fuel_spent), 0) AS total_fuel
+                    FROM schedule_entries se
+                    WHERE EXTRACT(YEAR FROM se.work_date) = %s
+                      AND EXTRACT(MONTH FROM se.work_date) = %s
+                """, (year, month))
+                totals = dict(cur.fetchone())
+
+                return ok({"drivers": drivers, "conductors": conductors, "buses": buses, "totals": totals})
 
     return err("Not found", 404)

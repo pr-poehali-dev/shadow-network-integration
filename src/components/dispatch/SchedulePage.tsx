@@ -244,6 +244,18 @@ export default function SchedulePage() {
     groupedEntries.push({ route: items[0], items });
   });
 
+  const calcEntryTotal = (e: Entry) => e.revenue_total ?? (((e.revenue_cash ?? 0) + (e.revenue_cashless ?? 0)) || 0);
+  const calcEntryTickets = (e: Entry) => {
+    const t = calcEntryTotal(e);
+    return t ? Math.floor(t / ticketPrice) : 0;
+  };
+
+  const dayTotalCash = entries.reduce((s, e) => s + (e.revenue_cash ?? 0), 0);
+  const dayTotalCashless = entries.reduce((s, e) => s + (e.revenue_cashless ?? 0), 0);
+  const dayTotalRevenue = entries.reduce((s, e) => s + calcEntryTotal(e), 0);
+  const dayTotalTickets = entries.reduce((s, e) => s + calcEntryTickets(e), 0);
+  const dayTotalFuel = entries.reduce((s, e) => s + (e.fuel_spent ?? 0), 0);
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-4 mb-6">
@@ -449,11 +461,51 @@ export default function SchedulePage() {
                         </tr>
                       );
                     })}
+                    {items.length > 1 && (() => {
+                      const rCash = items.reduce((s, e) => s + (e.revenue_cash ?? 0), 0);
+                      const rCashless = items.reduce((s, e) => s + (e.revenue_cashless ?? 0), 0);
+                      const rTotal = items.reduce((s, e) => s + calcEntryTotal(e), 0);
+                      const rTickets = items.reduce((s, e) => s + calcEntryTickets(e), 0);
+                      const rFuel = items.reduce((s, e) => s + (e.fuel_spent ?? 0), 0);
+                      return (
+                        <tr className="bg-neutral-100 border-t border-neutral-200 font-semibold text-xs text-neutral-700">
+                          <td className="px-4 py-2" colSpan={5}>
+                            Итого м. {route.route_number}
+                          </td>
+                          <td className="px-4 py-2 text-right">{rFuel ? rFuel.toFixed(1) + " л" : ""}</td>
+                          <td className="px-4 py-2 text-right">
+                            {rTotal ? (
+                              <span>
+                                {fmtMoney(rTotal)}
+                                <span className="font-normal text-neutral-500 ml-1">
+                                  (нал. {fmtMoney(rCash)}, безнал. {fmtMoney(rCashless)})
+                                </span>
+                                <span className="ml-2">{rTickets} бил.</span>
+                              </span>
+                            ) : ""}
+                          </td>
+                          <td></td>
+                        </tr>
+                      );
+                    })()}
                   </tbody>
                 </table>
               </div>
             );
           })}
+
+          {entries.length > 0 && (
+            <div className="border border-neutral-300 rounded bg-neutral-900 text-white px-5 py-4 flex flex-wrap gap-6 items-center">
+              <span className="font-bold text-sm uppercase tracking-wide">Итого за день</span>
+              <div className="flex gap-4 text-sm">
+                <span>Наличные: <span className="font-semibold">{fmtMoney(dayTotalCash)}</span></span>
+                <span>Безнал.: <span className="font-semibold">{fmtMoney(dayTotalCashless)}</span></span>
+              </div>
+              <span className="text-lg font-bold">{fmtMoney(dayTotalRevenue)}</span>
+              <span className="text-sm">Билетов: <span className="font-bold">{dayTotalTickets}</span></span>
+              {dayTotalFuel > 0 && <span className="text-sm">ДТ: <span className="font-bold">{dayTotalFuel.toFixed(1)} л</span></span>}
+            </div>
+          )}
         </div>
       )}
     </div>
