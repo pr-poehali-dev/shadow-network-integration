@@ -1,7 +1,9 @@
 import { useScroll, useTransform, motion } from "framer-motion";
 import { useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function Hero() {
+  const navigate = useNavigate();
   const container = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: container,
@@ -32,9 +34,17 @@ export default function Hero() {
         <p className="text-lg md:text-xl max-w-2xl mx-auto px-6 opacity-90">
           Автоматический расчёт зарплат водителей автобусов с учётом рабочего времени, больничных и прогулов
         </p>
-        <button className="mt-8 bg-white text-black px-8 py-3 uppercase tracking-wide text-sm font-semibold hover:bg-neutral-200 transition-colors duration-300 cursor-pointer">
-          Запросить демо
-        </button>
+        <div className="mt-8 flex flex-wrap gap-4 justify-center" style={{textShadow: 'none'}}>
+          <button
+            onClick={() => navigate("/dispatch")}
+            className="bg-white text-black px-8 py-3 uppercase tracking-wide text-sm font-semibold hover:bg-neutral-200 transition-colors duration-300 cursor-pointer"
+          >
+            Открыть диспетчерскую
+          </button>
+          <button className="border border-white text-white px-8 py-3 uppercase tracking-wide text-sm font-semibold hover:bg-white hover:text-black transition-colors duration-300 cursor-pointer">
+            Запросить демо
+          </button>
+        </div>
       </div>
     </div>
   );
