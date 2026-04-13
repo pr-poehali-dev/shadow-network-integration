@@ -118,6 +118,24 @@ def handler(event: dict, context) -> dict:
                 if method == "GET":
                     cur.execute("SELECT * FROM terminals ORDER BY organization, CAST(number AS INTEGER)")
                     return ok(list(cur.fetchall()))
+                if method == "POST":
+                    cur.execute(
+                        "INSERT INTO terminals (number, name, organization) VALUES (%s, %s, %s) RETURNING *",
+                        (body.get("number"), body.get("name"), body.get("organization") or None)
+                    )
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "PUT":
+                    cur.execute(
+                        "UPDATE terminals SET number=%s, name=%s, organization=%s WHERE id=%s RETURNING *",
+                        (body.get("number"), body.get("name"), body.get("organization") or None, item_id)
+                    )
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "DELETE":
+                    cur.execute("DELETE FROM terminals WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
 
     # --- BUSES ---
     if resource == "buses":
@@ -128,15 +146,19 @@ def handler(event: dict, context) -> dict:
                     return ok(list(cur.fetchall()))
                 if method == "POST":
                     cur.execute(
-                        "INSERT INTO buses (board_number, model) VALUES (%s, %s) RETURNING *",
-                        (body.get("board_number"), body.get("model", ""))
+                        "INSERT INTO buses (board_number, model, gov_number, vin, rosavtodor_number) VALUES (%s, %s, %s, %s, %s) RETURNING *",
+                        (body.get("board_number"), body.get("model", ""),
+                         body.get("gov_number") or None, body.get("vin") or None,
+                         body.get("rosavtodor_number") or None)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
                 if method == "PUT":
                     cur.execute(
-                        "UPDATE buses SET board_number=%s, model=%s WHERE id=%s RETURNING *",
-                        (body.get("board_number"), body.get("model", ""), item_id)
+                        "UPDATE buses SET board_number=%s, model=%s, gov_number=%s, vin=%s, rosavtodor_number=%s WHERE id=%s RETURNING *",
+                        (body.get("board_number"), body.get("model", ""),
+                         body.get("gov_number") or None, body.get("vin") or None,
+                         body.get("rosavtodor_number") or None, item_id)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))

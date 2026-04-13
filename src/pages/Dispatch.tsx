@@ -7,7 +7,7 @@ import BusDocsPage from "@/components/dispatch/BusDocsPage";
 import RoutesPage from "@/components/dispatch/RoutesPage";
 import Icon from "@/components/ui/icon";
 
-type Tab = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors";
+type Tab = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors" | "terminals";
 
 const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: "schedule", label: "Расписание", icon: "CalendarDays" },
@@ -17,6 +17,7 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: "buses", label: "Автобусы", icon: "Bus" },
   { id: "drivers", label: "Водители", icon: "User" },
   { id: "conductors", label: "Кондукторы", icon: "Users" },
+  { id: "terminals", label: "Терминалы", icon: "MonitorSmartphone" },
 ];
 
 export default function Dispatch() {
@@ -51,7 +52,6 @@ export default function Dispatch() {
           {tab === "schedule" && <SchedulePage />}
           {tab === "summary" && <SummaryPage />}
           {tab === "busdocs" && <BusDocsPage />}
-
           {tab === "routes" && <RoutesPage />}
 
           {tab === "buses" && (
@@ -59,16 +59,22 @@ export default function Dispatch() {
               title="Автобусы"
               fields={[
                 { key: "board_number", label: "Бортовой №", placeholder: "Бортовой номер" },
-                { key: "model", label: "Модель", placeholder: "Модель (необязательно)" },
+                { key: "gov_number", label: "Гос. номер", placeholder: "А123БВ 27" },
+                { key: "model", label: "Модель", placeholder: "Модель" },
+                { key: "vin", label: "VIN", placeholder: "17 символов" },
+                { key: "rosavtodor_number", label: "Реестр Росавтодора", placeholder: "Реестровый номер" },
               ]}
               fetchFn={api.getBuses}
               createFn={data => api.createBus(data as { board_number: string; model: string })}
               updateFn={(id, data) => api.updateBus(id, data as { board_number: string; model: string })}
               deleteFn={api.deleteBus}
               renderRow={item => (
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-neutral-900">№ {String(item.board_number)}</span>
-                  <span className="text-neutral-500 text-xs">{String(item.model || "")}</span>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="font-semibold text-neutral-900">Борт № {String(item.board_number)}</span>
+                  {item.gov_number && <span className="text-neutral-700 text-xs border border-neutral-300 px-1.5 py-0.5 rounded">{String(item.gov_number)}</span>}
+                  {item.model && <span className="text-neutral-500 text-xs">{String(item.model)}</span>}
+                  {item.vin && <span className="text-neutral-400 text-xs font-mono">VIN: {String(item.vin)}</span>}
+                  {item.rosavtodor_number && <span className="text-neutral-400 text-xs">Реестр: {String(item.rosavtodor_number)}</span>}
                 </div>
               )}
             />
@@ -117,6 +123,27 @@ export default function Dispatch() {
                 <div className="flex items-center gap-3">
                   <span className="text-neutral-900 font-medium">{String(item.full_name)}</span>
                   {item.phone && <span className="text-neutral-500 text-xs">{String(item.phone)}</span>}
+                </div>
+              )}
+            />
+          )}
+
+          {tab === "terminals" && (
+            <CatalogPage
+              title="Терминалы"
+              fields={[
+                { key: "number", label: "Номер", placeholder: "1" },
+                { key: "name", label: "Название", placeholder: "Терминал №1" },
+                { key: "organization", label: "Организация", placeholder: 'ООО "Дальавтотранс"' },
+              ]}
+              fetchFn={api.getTerminals}
+              createFn={data => api.createTerminal(data as { number: string; name: string; organization: string })}
+              updateFn={(id, data) => api.updateTerminal(id, data as { number: string; name: string; organization: string })}
+              deleteFn={api.deleteTerminal}
+              renderRow={item => (
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold text-neutral-900">{String(item.name)}</span>
+                  {item.organization && <span className="text-neutral-400 text-xs">{String(item.organization)}</span>}
                 </div>
               )}
             />

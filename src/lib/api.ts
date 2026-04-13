@@ -30,6 +30,9 @@ async function docsReq(method: string, resource: string, body?: object, params?:
 export const api = {
   // Terminals
   getTerminals: () => req("GET", "terminals"),
+  createTerminal: (data: { number: string; name: string; organization: string }) => req("POST", "terminals", data),
+  updateTerminal: (id: number, data: { number: string; name: string; organization: string }) => req("PUT", "terminals", data, { id: String(id) }),
+  deleteTerminal: (id: number) => req("DELETE", "terminals", undefined, { id: String(id) }),
 
   // Routes
   getRoutes: () => req("GET", "routes"),
