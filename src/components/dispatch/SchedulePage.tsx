@@ -25,6 +25,65 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function formatDate(iso: string) {
+  const [y, m, d] = iso.split("-");
+  return `${d}.${m}.${y}`;
+}
+
+function handlePrint(date: string, entries: Entry[]) {
+  const rows = entries.map(e => `
+    <tr>
+      <td>${e.route_number}${e.route_name ? `<br/><small>${e.route_name}</small>` : ""}</td>
+      <td>${e.board_number ?? "—"}${e.bus_model ? `<br/><small>${e.bus_model}</small>` : ""}</td>
+      <td>${e.driver_name ?? "—"}</td>
+      <td>${e.conductor_name ?? "—"}</td>
+    </tr>
+  `).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Расписание ${formatDate(date)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 13px; margin: 24px; color: #111; }
+    h2 { font-size: 16px; margin-bottom: 4px; }
+    p.sub { color: #555; font-size: 12px; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f0f0f0; text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; border: 1px solid #ddd; }
+    td { padding: 8px 10px; border: 1px solid #ddd; vertical-align: top; }
+    td small { color: #777; font-size: 11px; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .footer { margin-top: 24px; font-size: 11px; color: #aaa; text-align: right; }
+    @media print { body { margin: 12px; } }
+  </style>
+</head>
+<body>
+  <h2>Расписание на ${formatDate(date)}</h2>
+  <p class="sub">RoutePayroll — сформировано ${new Date().toLocaleString("ru")}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Маршрут</th>
+        <th>Бортовой №</th>
+        <th>Водитель</th>
+        <th>Кондуктор</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="footer">Всего маршрутов: ${entries.length}</div>
+</body>
+</html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { w.print(); }, 400);
+}
+
 export default function SchedulePage() {
   const [date, setDate] = useState(today());
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -93,6 +152,15 @@ export default function SchedulePage() {
           onChange={e => setDate(e.target.value)}
           className="border border-neutral-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-neutral-600"
         />
+        {entries.length > 0 && (
+          <button
+            onClick={() => handlePrint(date, entries)}
+            className="ml-auto flex items-center gap-2 border border-neutral-300 px-4 py-2 text-sm rounded hover:bg-neutral-100 transition-colors cursor-pointer text-neutral-700"
+          >
+            <Icon name="Printer" size={15} />
+            Распечатать
+          </button>
+        )}
       </div>
 
       <div className="bg-neutral-50 border border-neutral-200 rounded p-4 mb-6 flex flex-wrap gap-3 items-center">
