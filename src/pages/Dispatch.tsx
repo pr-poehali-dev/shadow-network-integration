@@ -11,20 +11,25 @@ import SettingsPage from "@/components/dispatch/SettingsPage";
 import UsersPage from "@/components/dispatch/UsersPage";
 import SalaryPage from "@/components/dispatch/SalaryPage";
 import LoginPage from "@/components/dispatch/LoginPage";
+import MedicalJournalPage from "@/components/dispatch/MedicalJournalPage";
+import VehicleReleasePage from "@/components/dispatch/VehicleReleasePage";
 import Icon from "@/components/ui/icon";
 
-const allTabs: { id: TabId; label: string; icon: string }[] = [
-  { id: "schedule",   label: "Расписание",    icon: "CalendarDays" },
-  { id: "summary",    label: "Сводка смен",   icon: "BarChart2" },
-  { id: "busdocs",    label: "Документы ТС",  icon: "FileText" },
-  { id: "routes",     label: "Маршруты",      icon: "Map" },
-  { id: "buses",      label: "Автобусы",      icon: "Bus" },
-  { id: "drivers",    label: "Водители",      icon: "User" },
-  { id: "conductors", label: "Кондукторы",    icon: "Users" },
-  { id: "terminals",  label: "Терминалы",     icon: "MonitorSmartphone" },
-  { id: "salary",     label: "Зарплата",      icon: "Banknote" },
-  { id: "users",      label: "Пользователи",  icon: "Shield" },
-  { id: "settings",   label: "Настройки",     icon: "Settings" },
+const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
+  { id: "schedule",        label: "Расписание",        icon: "CalendarDays" },
+  { id: "summary",         label: "Сводка смен",       icon: "BarChart2" },
+  { id: "busdocs",         label: "Документы ТС",      icon: "FileText" },
+  { id: "routes",          label: "Маршруты",          icon: "Map" },
+  { id: "buses",           label: "Автобусы",          icon: "Bus" },
+  { id: "drivers",         label: "Водители",          icon: "User" },
+  { id: "conductors",      label: "Кондукторы",        icon: "Users" },
+  { id: "terminals",       label: "Терминалы",         icon: "MonitorSmartphone" },
+  { id: "salary",          label: "Зарплата",          icon: "Banknote" },
+  { id: "mechanics",       label: "Механики",          icon: "Wrench" },
+  { id: "journal_medical", label: "Журнал медика",     icon: "Stethoscope",  group: "Журналы" },
+  { id: "journal_release", label: "Журнал выпуска ТС", icon: "ClipboardList", group: "Журналы" },
+  { id: "users",           label: "Пользователи",      icon: "Shield" },
+  { id: "settings",        label: "Настройки",         icon: "Settings" },
 ];
 
 function DispatchApp() {
@@ -59,21 +64,34 @@ function DispatchApp() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <nav className="w-52 border-r border-neutral-200 flex flex-col py-4 gap-1 shrink-0">
-          {visibleTabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors cursor-pointer ${
-                currentTab === t.id
-                  ? "bg-neutral-900 text-white"
-                  : "text-neutral-600 hover:bg-neutral-100"
-              }`}
-            >
-              <Icon name={t.icon} size={16} />
-              {t.label}
-            </button>
-          ))}
+        <nav className="w-52 border-r border-neutral-200 flex flex-col py-4 gap-1 shrink-0 overflow-y-auto">
+          {(() => {
+            let lastGroup: string | undefined = undefined;
+            return visibleTabs.map(t => {
+              const showHeader = t.group && t.group !== lastGroup;
+              lastGroup = t.group;
+              return (
+                <div key={t.id}>
+                  {showHeader && (
+                    <div className="px-4 pt-3 pb-1 text-xs font-semibold text-neutral-400 uppercase tracking-wider">
+                      {t.group}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setTab(t.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors cursor-pointer ${
+                      currentTab === t.id
+                        ? "bg-neutral-900 text-white"
+                        : "text-neutral-600 hover:bg-neutral-100"
+                    }`}
+                  >
+                    <Icon name={t.icon} size={16} />
+                    {t.label}
+                  </button>
+                </div>
+              );
+            });
+          })()}
         </nav>
 
         <main className="flex-1 p-8 overflow-y-auto">
@@ -155,6 +173,29 @@ function DispatchApp() {
           )}
 
           {currentTab === "salary" && <SalaryPage />}
+
+          {currentTab === "mechanics" && (
+            <CatalogPage
+              title="Механики по выпуску"
+              fields={[
+                { key: "full_name", label: "ФИО", placeholder: "Фамилия Имя Отчество" },
+                { key: "organization", label: "Организация", placeholder: "Название организации" },
+              ]}
+              fetchFn={api.getMechanics}
+              createFn={data => api.createMechanic(data as { full_name: string; organization?: string })}
+              updateFn={(id, data) => api.updateMechanic(id, data)}
+              deleteFn={api.deleteMechanic}
+              renderRow={item => (
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-neutral-900">{String(item.full_name)}</span>
+                  {item.organization && <span className="text-neutral-400 text-xs">{String(item.organization)}</span>}
+                </div>
+              )}
+            />
+          )}
+
+          {currentTab === "journal_medical" && <MedicalJournalPage />}
+          {currentTab === "journal_release" && <VehicleReleasePage />}
           {currentTab === "users" && <UsersPage />}
           {currentTab === "settings" && <SettingsPage />}
         </main>

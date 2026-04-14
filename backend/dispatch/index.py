@@ -727,4 +727,340 @@ def handler(event: dict, context) -> dict:
                     "fuel_price": fuel_price_default,
                 })
 
+    # --- MECHANICS: ответственные механики по выпуску ---
+    if resource == "mechanics":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    org = params.get("organization")
+                    if org:
+                        cur.execute("SELECT * FROM mechanics WHERE is_active = TRUE AND organization = %s ORDER BY full_name", (org,))
+                    else:
+                        cur.execute("SELECT * FROM mechanics WHERE is_active = TRUE ORDER BY organization, full_name")
+                    return ok(list(cur.fetchall()))
+                if method == "POST":
+                    cur.execute(
+                        "INSERT INTO mechanics (full_name, organization) VALUES (%s, %s) RETURNING *",
+                        (body.get("full_name"), body.get("organization") or None)
+                    )
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "PUT":
+                    cur.execute(
+                        "UPDATE mechanics SET full_name=%s, organization=%s, is_active=%s WHERE id=%s RETURNING *",
+                        (body.get("full_name"), body.get("organization") or None, body.get("is_active", True), item_id)
+                    )
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "DELETE":
+                    cur.execute("UPDATE mechanics SET is_active = FALSE WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- MEDICAL_JOURNAL: журнал медосмотров ---
+    if resource == "medical_journal":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    work_date = params.get("date")
+                    org = params.get("organization")
+                    if not work_date:
+                        return err("date required")
+                    if org:
+                        cur.execute(
+                            "SELECT * FROM medical_journal WHERE work_date = %s AND organization = %s ORDER BY graph_number NULLS LAST, pre_shift_time NULLS LAST",
+                            (work_date, org)
+                        )
+                    else:
+                        cur.execute(
+                            "SELECT * FROM medical_journal WHERE work_date = %s ORDER BY organization, graph_number NULLS LAST, pre_shift_time NULLS LAST",
+                            (work_date,)
+                        )
+                    return ok(list(cur.fetchall()))
+
+                if method == "POST":
+                    cur.execute("""
+                        INSERT INTO medical_journal
+                            (work_date, organization, driver_id, driver_name, route_id, route_number, graph_number,
+                             pre_shift_time, post_shift_time, pre_shift_admitted, post_shift_admitted,
+                             pre_shift_note, post_shift_note, medic_name)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
+                    """, (
+                        body.get("work_date"),
+                        body.get("organization") or None,
+                        body.get("driver_id") or None,
+                        body.get("driver_name") or None,
+                        body.get("route_id") or None,
+                        body.get("route_number") or None,
+                        body.get("graph_number") or None,
+                        body.get("pre_shift_time") or None,
+                        body.get("post_shift_time") or None,
+                        body.get("pre_shift_admitted", True),
+                        body.get("post_shift_admitted", True),
+                        body.get("pre_shift_note") or None,
+                        body.get("post_shift_note") or None,
+                        body.get("medic_name") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    cur.execute("""
+                        UPDATE medical_journal SET
+                            pre_shift_time=%s, post_shift_time=%s,
+                            pre_shift_admitted=%s, post_shift_admitted=%s,
+                            pre_shift_note=%s, post_shift_note=%s, medic_name=%s,
+                            updated_at=NOW()
+                        WHERE id=%s RETURNING *
+                    """, (
+                        body.get("pre_shift_time") or None,
+                        body.get("post_shift_time") or None,
+                        body.get("pre_shift_admitted", True),
+                        body.get("post_shift_admitted", True),
+                        body.get("pre_shift_note") or None,
+                        body.get("post_shift_note") or None,
+                        body.get("medic_name") or None,
+                        item_id,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "DELETE":
+                    cur.execute("DELETE FROM medical_journal WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- MEDICAL_JOURNAL_INIT: создать записи на день из расписания ---
+    if resource == "medical_journal_init":
+        if method != "POST":
+            return err("POST required")
+        work_date = body.get("work_date")
+        organization = body.get("organization")
+        if not work_date:
+            return err("work_date required")
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Получить расписание на день
+                if organization:
+                    cur.execute("""
+                        SELECT se.id, se.graph_number, r.id as route_id, r.number as route_number, r.organization,
+                               d.id as driver_id, d.full_name as driver_name
+                        FROM schedule_entries se
+                        JOIN routes r ON r.id = se.route_id
+                        LEFT JOIN drivers d ON d.id = se.driver_id
+                        WHERE se.work_date = %s AND r.organization = %s AND d.id IS NOT NULL
+                        ORDER BY se.graph_number NULLS LAST
+                    """, (work_date, organization))
+                else:
+                    cur.execute("""
+                        SELECT se.id, se.graph_number, r.id as route_id, r.number as route_number, r.organization,
+                               d.id as driver_id, d.full_name as driver_name
+                        FROM schedule_entries se
+                        JOIN routes r ON r.id = se.route_id
+                        LEFT JOIN drivers d ON d.id = se.driver_id
+                        WHERE se.work_date = %s AND d.id IS NOT NULL
+                        ORDER BY r.organization, se.graph_number NULLS LAST
+                    """, (work_date,))
+                schedule = list(cur.fetchall())
+
+                # Получить уже существующие записи (по driver_id и дате)
+                cur.execute(
+                    "SELECT driver_id FROM medical_journal WHERE work_date = %s",
+                    (work_date,)
+                )
+                existing_driver_ids = {r["driver_id"] for r in cur.fetchall() if r["driver_id"]}
+
+                created = []
+                # Сортируем по graph_number для правильного шага 5 мин
+                schedule_sorted = sorted(schedule, key=lambda x: (x["organization"] or "", x["graph_number"] or 9999))
+
+                # Группируем по организации
+                from itertools import groupby
+                from datetime import datetime, timedelta
+
+                org_groups = {}
+                for row in schedule_sorted:
+                    org_key = row["organization"] or "default"
+                    if org_key not in org_groups:
+                        org_groups[org_key] = []
+                    org_groups[org_key].append(row)
+
+                for org_key, rows in org_groups.items():
+                    # Начальное время — 06:00, +5 мин на каждого водителя (по порядку графика)
+                    base_time = datetime.strptime("06:00", "%H:%M")
+                    for i, row in enumerate(rows):
+                        if row["driver_id"] in existing_driver_ids:
+                            continue
+                        t = base_time + timedelta(minutes=5 * i)
+                        pre_time = t.strftime("%H:%M")
+                        # послесменный: базово через 9 часов
+                        post_t = t + timedelta(hours=9)
+                        post_time = post_t.strftime("%H:%M")
+                        cur.execute("""
+                            INSERT INTO medical_journal
+                                (work_date, organization, driver_id, driver_name, route_id, route_number, graph_number,
+                                 pre_shift_time, post_shift_time, pre_shift_admitted, post_shift_admitted)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, TRUE)
+                            ON CONFLICT DO NOTHING
+                            RETURNING *
+                        """, (
+                            work_date,
+                            row["organization"],
+                            row["driver_id"],
+                            row["driver_name"],
+                            row["route_id"],
+                            row["route_number"],
+                            row["graph_number"],
+                            pre_time,
+                            post_time,
+                        ))
+                        r = cur.fetchone()
+                        if r:
+                            created.append(dict(r))
+                conn.commit()
+                return ok({"created": len(created), "records": created})
+
+    # --- VEHICLE_RELEASE_JOURNAL: журнал выпуска ТС ---
+    if resource == "vehicle_release":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    work_date = params.get("date")
+                    org = params.get("organization")
+                    if not work_date:
+                        return err("date required")
+                    if org:
+                        cur.execute(
+                            "SELECT * FROM vehicle_release_journal WHERE work_date = %s AND organization = %s ORDER BY graph_number NULLS LAST",
+                            (work_date, org)
+                        )
+                    else:
+                        cur.execute(
+                            "SELECT * FROM vehicle_release_journal WHERE work_date = %s ORDER BY organization, graph_number NULLS LAST",
+                            (work_date,)
+                        )
+                    return ok(list(cur.fetchall()))
+
+                if method == "POST":
+                    cur.execute("""
+                        INSERT INTO vehicle_release_journal
+                            (work_date, organization, schedule_entry_id, route_id, route_number, graph_number,
+                             board_number, gov_number, driver_name, mechanic_id, mechanic_name,
+                             departure_time, arrival_time, odometer_departure, odometer_arrival, notes)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
+                    """, (
+                        body.get("work_date"),
+                        body.get("organization") or None,
+                        body.get("schedule_entry_id") or None,
+                        body.get("route_id") or None,
+                        body.get("route_number") or None,
+                        body.get("graph_number") or None,
+                        body.get("board_number") or None,
+                        body.get("gov_number") or None,
+                        body.get("driver_name") or None,
+                        body.get("mechanic_id") or None,
+                        body.get("mechanic_name") or None,
+                        body.get("departure_time") or None,
+                        body.get("arrival_time") or None,
+                        body.get("odometer_departure") or None,
+                        body.get("odometer_arrival") or None,
+                        body.get("notes") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    cur.execute("""
+                        UPDATE vehicle_release_journal SET
+                            mechanic_id=%s, mechanic_name=%s,
+                            departure_time=%s, arrival_time=%s,
+                            odometer_departure=%s, odometer_arrival=%s,
+                            notes=%s, updated_at=NOW()
+                        WHERE id=%s RETURNING *
+                    """, (
+                        body.get("mechanic_id") or None,
+                        body.get("mechanic_name") or None,
+                        body.get("departure_time") or None,
+                        body.get("arrival_time") or None,
+                        body.get("odometer_departure") or None,
+                        body.get("odometer_arrival") or None,
+                        body.get("notes") or None,
+                        item_id,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "DELETE":
+                    cur.execute("DELETE FROM vehicle_release_journal WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- VEHICLE_RELEASE_INIT: заполнить журнал выпуска из расписания ---
+    if resource == "vehicle_release_init":
+        if method != "POST":
+            return err("POST required")
+        work_date = body.get("work_date")
+        organization = body.get("organization")
+        if not work_date:
+            return err("work_date required")
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if organization:
+                    cur.execute("""
+                        SELECT se.id, se.graph_number, r.id as route_id, r.number as route_number, r.organization,
+                               b.board_number, b.gov_number,
+                               d.full_name as driver_name
+                        FROM schedule_entries se
+                        JOIN routes r ON r.id = se.route_id
+                        LEFT JOIN buses b ON b.id = se.bus_id
+                        LEFT JOIN drivers d ON d.id = se.driver_id
+                        WHERE se.work_date = %s AND r.organization = %s
+                        ORDER BY se.graph_number NULLS LAST
+                    """, (work_date, organization))
+                else:
+                    cur.execute("""
+                        SELECT se.id, se.graph_number, r.id as route_id, r.number as route_number, r.organization,
+                               b.board_number, b.gov_number,
+                               d.full_name as driver_name
+                        FROM schedule_entries se
+                        JOIN routes r ON r.id = se.route_id
+                        LEFT JOIN buses b ON b.id = se.bus_id
+                        LEFT JOIN drivers d ON d.id = se.driver_id
+                        WHERE se.work_date = %s
+                        ORDER BY r.organization, se.graph_number NULLS LAST
+                    """, (work_date,))
+                schedule = list(cur.fetchall())
+
+                cur.execute(
+                    "SELECT schedule_entry_id FROM vehicle_release_journal WHERE work_date = %s",
+                    (work_date,)
+                )
+                existing_ids = {r["schedule_entry_id"] for r in cur.fetchall() if r["schedule_entry_id"]}
+
+                created = []
+                for row in schedule:
+                    if row["id"] in existing_ids:
+                        continue
+                    cur.execute("""
+                        INSERT INTO vehicle_release_journal
+                            (work_date, organization, schedule_entry_id, route_id, route_number, graph_number,
+                             board_number, gov_number, driver_name)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
+                    """, (
+                        work_date,
+                        row["organization"],
+                        row["id"],
+                        row["route_id"],
+                        row["route_number"],
+                        row["graph_number"],
+                        row["board_number"],
+                        row["gov_number"],
+                        row["driver_name"],
+                    ))
+                    r = cur.fetchone()
+                    if r:
+                        created.append(dict(r))
+                conn.commit()
+                return ok({"created": len(created), "records": created})
+
     return err("Not found", 404)

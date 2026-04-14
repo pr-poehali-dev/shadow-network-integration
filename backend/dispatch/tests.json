@@ -69,6 +69,27 @@
       "path": "/?resource=crew_salary",
       "expectedStatus": 400,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET mechanics",
+      "method": "GET",
+      "path": "/?resource=mechanics",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET medical_journal missing date",
+      "method": "GET",
+      "path": "/?resource=medical_journal",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET vehicle_release missing date",
+      "method": "GET",
+      "path": "/?resource=vehicle_release",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
     }
   ]
 }

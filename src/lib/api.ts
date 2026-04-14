@@ -126,4 +126,28 @@ export const api = {
   createBusDoc: (data: object) => docsReq("POST", "docs", data),
   updateBusDoc: (id: number, data: object) => docsReq("PUT", "docs", data, { id: String(id) }),
   deleteBusDoc: (id: number) => docsReq("DELETE", "docs", undefined, { id: String(id) }),
+
+  // Mechanics
+  getMechanics: (organization?: string) => req("GET", "mechanics", undefined, organization ? { organization } : {}),
+  createMechanic: (data: { full_name: string; organization?: string }) => req("POST", "mechanics", data),
+  updateMechanic: (id: number, data: object) => req("PUT", "mechanics", data, { id: String(id) }),
+  deleteMechanic: (id: number) => req("DELETE", "mechanics", undefined, { id: String(id) }),
+
+  // Medical journal
+  getMedicalJournal: (date: string, organization?: string) =>
+    req("GET", "medical_journal", undefined, { date, ...(organization ? { organization } : {}) }),
+  createMedicalRecord: (data: object) => req("POST", "medical_journal", data),
+  updateMedicalRecord: (id: number, data: object) => req("PUT", "medical_journal", data, { id: String(id) }),
+  deleteMedicalRecord: (id: number) => req("DELETE", "medical_journal", undefined, { id: String(id) }),
+  initMedicalJournal: (work_date: string, organization?: string) =>
+    req("POST", "medical_journal_init", { work_date, ...(organization ? { organization } : {}) }),
+
+  // Vehicle release journal
+  getVehicleRelease: (date: string, organization?: string) =>
+    req("GET", "vehicle_release", undefined, { date, ...(organization ? { organization } : {}) }),
+  createVehicleRelease: (data: object) => req("POST", "vehicle_release", data),
+  updateVehicleRelease: (id: number, data: object) => req("PUT", "vehicle_release", data, { id: String(id) }),
+  deleteVehicleRelease: (id: number) => req("DELETE", "vehicle_release", undefined, { id: String(id) }),
+  initVehicleRelease: (work_date: string, organization?: string) =>
+    req("POST", "vehicle_release_init", { work_date, ...(organization ? { organization } : {}) }),
 };
