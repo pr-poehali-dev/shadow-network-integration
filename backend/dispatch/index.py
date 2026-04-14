@@ -380,7 +380,8 @@ def handler(event: dict, context) -> dict:
                         SET bus_id=%s, driver_id=%s, conductor_id=%s, graph_number=%s, terminal_id=%s, fuel_spent=%s,
                             revenue_cashless=%s, revenue_total=%s, ticket_price=%s, tickets_sold=%s,
                             is_overtime=%s, fuel_price_override=%s,
-                            absence_reason=%s, absence_fine=%s
+                            absence_reason=%s, absence_fine=%s,
+                            updated_at=NOW()
                         WHERE id=%s
                     """, (
                         body.get("bus_id") or None,
@@ -432,7 +433,8 @@ def handler(event: dict, context) -> dict:
                             revenue_total = %s,
                             fuel_spent = COALESCE(%s, fuel_spent),
                             fuel_price_override = COALESCE(%s, fuel_price_override),
-                            tickets_sold = COALESCE(%s, tickets_sold)
+                            tickets_sold = COALESCE(%s, tickets_sold),
+                            updated_at = NOW()
                         WHERE id = %s
                     """, (revenue_cash, revenue_cashless, revenue_total, fuel_spent, fuel_price_override, tickets_sold, entry_id))
                     conn.commit()
