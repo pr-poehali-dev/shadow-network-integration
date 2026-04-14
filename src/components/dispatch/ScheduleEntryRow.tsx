@@ -190,6 +190,17 @@ export default function ScheduleEntryRow({
         )}
       </td>
 
+      {/* Билеты (заполняет кассир) */}
+      <td className="px-4 py-2 text-center">
+        {entry.tickets_sold != null ? (
+          <span className="inline-block bg-indigo-50 text-indigo-700 border border-indigo-200 rounded px-2 py-0.5 text-xs font-semibold font-mono">
+            {entry.tickets_sold}
+          </span>
+        ) : (
+          <span className="text-neutral-300 text-xs">—</span>
+        )}
+      </td>
+
       {/* Безналичные */}
       <td className="px-4 py-2">
         <button

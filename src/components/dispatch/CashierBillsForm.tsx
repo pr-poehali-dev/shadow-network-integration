@@ -21,6 +21,7 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
   const [cashless, setCashless] = useState(String(row.cashless_amount || "0"));
   const [notes, setNotes] = useState(row.notes || "");
   const [saving, setSaving] = useState(false);
+  const [ticketsSold, setTicketsSold] = useState(String(row.tickets_sold ?? ""));
   // Топливо за наличку
   const [fuelCash, setFuelCash] = useState(String((row as Record<string,unknown>).fuel_cash_amount || ""));
   const [fuelLiters, setFuelLiters] = useState(String((row as Record<string,unknown>).fuel_liters || ""));
@@ -34,6 +35,7 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
     setSaving(true);
     const fuelCashFinal = fuelCash ? parseFloat(fuelCash) : autoFuelCash || 0;
     const cashlessVal = parseFloat(cashless) || 0;
+    const ticketsNum = ticketsSold ? parseInt(ticketsSold) : null;
     await api.saveCashierReport({
       report_date: date,
       schedule_entry_id: row.schedule_entry_id,
@@ -50,6 +52,7 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
       fuel_cash_amount: fuelCashFinal,
       fuel_liters: fuelLiters ? parseFloat(fuelLiters) : null,
       fuel_price_per_liter: fuelPrice ? parseFloat(fuelPrice) : null,
+      tickets_sold: ticketsNum,
       ...bills,
     });
     // Синхронизируем данные кассы в наряд
@@ -61,6 +64,7 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
         revenue_total: cashTotal + cashlessVal,
         fuel_spent: fuelCashFinal > 0 && fuelLiters ? parseFloat(fuelLiters) : null,
         fuel_price_override: fuelPrice ? parseFloat(fuelPrice) : null,
+        tickets_sold: ticketsNum,
       });
     }
     setSaving(false);
@@ -77,7 +81,11 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
               Борт {row.board_number || "—"} · Маршрут {row.route_number}
               {row.graph_number != null && ` · График ${row.graph_number}`}
             </div>
-            {row.driver_name && <div className="text-xs text-neutral-500 mt-0.5">{row.driver_name}</div>}
+            {(row.driver_name || row.conductor_name) && (
+              <div className="text-xs text-neutral-500 mt-0.5">
+                {[row.driver_name, row.conductor_name].filter(Boolean).join(" / ")}
+              </div>
+            )}
           </div>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 cursor-pointer">
             <Icon name="X" size={18} />
@@ -197,6 +205,21 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
             <div className="text-xs text-neutral-500 mt-1.5">
               Сумма будет вычтена из наличных водителя. В сводке отобразятся литры.
             </div>
+          </div>
+
+          {/* Кол-во билетов */}
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1.5">
+              Количество проданных билетов
+            </label>
+            <input
+              type="number" min="0" step="1"
+              value={ticketsSold}
+              onChange={e => setTicketsSold(e.target.value)}
+              placeholder="0"
+              className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-neutral-500"
+            />
+            <div className="text-xs text-neutral-400 mt-1">Отобразится в наряде у диспетчера</div>
           </div>
 
           {/* Безнал */}

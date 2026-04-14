@@ -424,15 +424,17 @@ def handler(event: dict, context) -> dict:
                     revenue_total = float(body["revenue_total"]) if body.get("revenue_total") is not None else None
                     fuel_spent = float(body["fuel_spent"]) if body.get("fuel_spent") is not None else None
                     fuel_price_override = float(body["fuel_price_override"]) if body.get("fuel_price_override") is not None else None
+                    tickets_sold = int(body["tickets_sold"]) if body.get("tickets_sold") is not None else None
                     cur.execute("""
                         UPDATE schedule_entries
                         SET revenue_cash = %s,
                             revenue_cashless = %s,
                             revenue_total = %s,
                             fuel_spent = COALESCE(%s, fuel_spent),
-                            fuel_price_override = COALESCE(%s, fuel_price_override)
+                            fuel_price_override = COALESCE(%s, fuel_price_override),
+                            tickets_sold = COALESCE(%s, tickets_sold)
                         WHERE id = %s
-                    """, (revenue_cash, revenue_cashless, revenue_total, fuel_spent, fuel_price_override, entry_id))
+                    """, (revenue_cash, revenue_cashless, revenue_total, fuel_spent, fuel_price_override, tickets_sold, entry_id))
                     conn.commit()
                     return ok({"updated": True})
 
@@ -1468,6 +1470,7 @@ def handler(event: dict, context) -> dict:
                     fuel_cash = float(body.get("fuel_cash_amount") or 0)
                     fuel_liters = float(body.get("fuel_liters")) if body.get("fuel_liters") else None
                     fuel_price_per_liter = float(body.get("fuel_price_per_liter")) if body.get("fuel_price_per_liter") else None
+                    tickets_sold = int(body.get("tickets_sold")) if body.get("tickets_sold") is not None else None
                     cur.execute("""
                         INSERT INTO cashier_reports
                             (report_date, schedule_entry_id, board_number, gov_number, driver_name,
@@ -1475,8 +1478,8 @@ def handler(event: dict, context) -> dict:
                              bills_5000, bills_2000, bills_1000, bills_500, bills_200, bills_100, bills_50, bills_10,
                              coins_10, coins_5, coins_2, coins_1,
                              cashless_amount, is_overtime, notes, created_by,
-                             fuel_cash_amount, fuel_liters, fuel_price_per_liter)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                             fuel_cash_amount, fuel_liters, fuel_price_per_liter, tickets_sold)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                         ON CONFLICT (report_date, schedule_entry_id)
                         DO UPDATE SET
                             bills_5000=EXCLUDED.bills_5000, bills_2000=EXCLUDED.bills_2000,
@@ -1489,6 +1492,7 @@ def handler(event: dict, context) -> dict:
                             fuel_cash_amount=EXCLUDED.fuel_cash_amount,
                             fuel_liters=EXCLUDED.fuel_liters,
                             fuel_price_per_liter=EXCLUDED.fuel_price_per_liter,
+                            tickets_sold=EXCLUDED.tickets_sold,
                             notes=EXCLUDED.notes, updated_at=NOW()
                         RETURNING *
                     """, (
@@ -1508,7 +1512,7 @@ def handler(event: dict, context) -> dict:
                         bool(body.get("is_overtime", False)),
                         body.get("notes") or None,
                         body.get("created_by") or None,
-                        fuel_cash, fuel_liters, fuel_price_per_liter,
+                        fuel_cash, fuel_liters, fuel_price_per_liter, tickets_sold,
                     ))
                     conn.commit()
                     row = dict(cur.fetchone())
