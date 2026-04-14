@@ -1177,4 +1177,193 @@ def handler(event: dict, context) -> dict:
                     conn.commit()
                     return ok({"deleted": True})
 
+    # --- CASHIER_REPORT: отчёт кассира по ТС за день ---
+    if resource == "cashier_report":
+        BILLS = ["bills_5000","bills_2000","bills_1000","bills_500","bills_200","bills_100","bills_50","bills_10","coins_10","coins_5","coins_2","coins_1"]
+        BILL_VALUES = {"bills_5000":5000,"bills_2000":2000,"bills_1000":1000,"bills_500":500,"bills_200":200,"bills_100":100,"bills_50":50,"bills_10":10,"coins_10":10,"coins_5":5,"coins_2":2,"coins_1":1}
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    work_date = params.get("date")
+                    if not work_date:
+                        return err("date required")
+                    org = params.get("organization")
+                    if org:
+                        cur.execute("""
+                            SELECT se.id as schedule_entry_id, se.graph_number, se.is_overtime,
+                                   r.number as route_number, r.organization,
+                                   b.board_number, b.gov_number,
+                                   d.id as driver_id, d.full_name as driver_name,
+                                   cr.id as report_id,
+                                   cr.bills_5000, cr.bills_2000, cr.bills_1000, cr.bills_500,
+                                   cr.bills_200, cr.bills_100, cr.bills_50, cr.bills_10,
+                                   cr.coins_10, cr.coins_5, cr.coins_2, cr.coins_1,
+                                   cr.cashless_amount, cr.notes, cr.updated_at
+                            FROM schedule_entries se
+                            JOIN routes r ON r.id = se.route_id
+                            LEFT JOIN buses b ON b.id = se.bus_id
+                            LEFT JOIN drivers d ON d.id = se.driver_id
+                            LEFT JOIN cashier_reports cr ON cr.schedule_entry_id = se.id AND cr.report_date = se.work_date
+                            WHERE se.work_date = %s AND r.organization = %s
+                            ORDER BY r.number, se.graph_number NULLS LAST
+                        """, (work_date, org))
+                    else:
+                        cur.execute("""
+                            SELECT se.id as schedule_entry_id, se.graph_number, se.is_overtime,
+                                   r.number as route_number, r.organization,
+                                   b.board_number, b.gov_number,
+                                   d.id as driver_id, d.full_name as driver_name,
+                                   cr.id as report_id,
+                                   cr.bills_5000, cr.bills_2000, cr.bills_1000, cr.bills_500,
+                                   cr.bills_200, cr.bills_100, cr.bills_50, cr.bills_10,
+                                   cr.coins_10, cr.coins_5, cr.coins_2, cr.coins_1,
+                                   cr.cashless_amount, cr.notes, cr.updated_at
+                            FROM schedule_entries se
+                            JOIN routes r ON r.id = se.route_id
+                            LEFT JOIN buses b ON b.id = se.bus_id
+                            LEFT JOIN drivers d ON d.id = se.driver_id
+                            LEFT JOIN cashier_reports cr ON cr.schedule_entry_id = se.id AND cr.report_date = se.work_date
+                            WHERE se.work_date = %s
+                            ORDER BY r.organization NULLS LAST, r.number, se.graph_number NULLS LAST
+                        """, (work_date,))
+                    rows = list(cur.fetchall())
+                    driver_ids = [r["driver_id"] for r in rows if r.get("driver_id")]
+                    restrictions = {}
+                    if driver_ids:
+                        placeholders = ",".join(["%s"] * len(driver_ids))
+                        cur.execute(f"""
+                            SELECT driver_id, reason, restriction_type, limit_amount
+                            FROM cash_restrictions
+                            WHERE driver_id IN ({placeholders}) AND is_active = TRUE
+                              AND (expires_at IS NULL OR expires_at >= CURRENT_DATE)
+                        """, driver_ids)
+                        for r in cur.fetchall():
+                            restrictions[r["driver_id"]] = dict(r)
+                    result = []
+                    for row in rows:
+                        d = dict(row)
+                        d["restriction"] = restrictions.get(row.get("driver_id"))
+                        cash_total = sum(int(d.get(b) or 0) * v for b, v in BILL_VALUES.items())
+                        d["cash_total"] = cash_total
+                        result.append(d)
+                    total_cash = sum(r["cash_total"] for r in result)
+                    total_cashless = sum(float(r.get("cashless_amount") or 0) for r in result)
+                    return ok({"rows": result, "total_cash": total_cash, "total_cashless": total_cashless})
+
+                if method == "POST":
+                    eid = body.get("schedule_entry_id")
+                    if not eid:
+                        return err("schedule_entry_id required")
+                    bill_vals = {b: int(body.get(b) or 0) for b in BILLS}
+                    cash_total = sum(bill_vals[b] * BILL_VALUES[b] for b in BILLS)
+                    cur.execute("""
+                        INSERT INTO cashier_reports
+                            (report_date, schedule_entry_id, board_number, gov_number, driver_name,
+                             route_number, graph_number, organization,
+                             bills_5000, bills_2000, bills_1000, bills_500, bills_200, bills_100, bills_50, bills_10,
+                             coins_10, coins_5, coins_2, coins_1,
+                             cashless_amount, is_overtime, notes, created_by)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        ON CONFLICT (report_date, schedule_entry_id)
+                        DO UPDATE SET
+                            bills_5000=EXCLUDED.bills_5000, bills_2000=EXCLUDED.bills_2000,
+                            bills_1000=EXCLUDED.bills_1000, bills_500=EXCLUDED.bills_500,
+                            bills_200=EXCLUDED.bills_200, bills_100=EXCLUDED.bills_100,
+                            bills_50=EXCLUDED.bills_50, bills_10=EXCLUDED.bills_10,
+                            coins_10=EXCLUDED.coins_10, coins_5=EXCLUDED.coins_5,
+                            coins_2=EXCLUDED.coins_2, coins_1=EXCLUDED.coins_1,
+                            cashless_amount=EXCLUDED.cashless_amount,
+                            notes=EXCLUDED.notes, updated_at=NOW()
+                        RETURNING *
+                    """, (
+                        body.get("report_date"),
+                        int(eid),
+                        body.get("board_number") or None,
+                        body.get("gov_number") or None,
+                        body.get("driver_name") or None,
+                        body.get("route_number") or None,
+                        body.get("graph_number") or None,
+                        body.get("organization") or None,
+                        bill_vals["bills_5000"], bill_vals["bills_2000"], bill_vals["bills_1000"],
+                        bill_vals["bills_500"], bill_vals["bills_200"], bill_vals["bills_100"],
+                        bill_vals["bills_50"], bill_vals["bills_10"],
+                        bill_vals["coins_10"], bill_vals["coins_5"], bill_vals["coins_2"], bill_vals["coins_1"],
+                        float(body.get("cashless_amount") or 0),
+                        bool(body.get("is_overtime", False)),
+                        body.get("notes") or None,
+                        body.get("created_by") or None,
+                    ))
+                    conn.commit()
+                    row = dict(cur.fetchone())
+                    row["cash_total"] = cash_total
+                    return ok(row)
+
+                if method == "DELETE":
+                    if not item_id:
+                        return err("id required")
+                    cur.execute("DELETE FROM cashier_reports WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- CASH_RESTRICTION: ограничения на выдачу наличных ---
+    if resource == "cash_restriction":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    cur.execute("""
+                        SELECT cr.*, d.full_name as driver_full_name
+                        FROM cash_restrictions cr
+                        LEFT JOIN drivers d ON d.id = cr.driver_id
+                        ORDER BY cr.is_active DESC, cr.created_at DESC
+                    """)
+                    return ok(list(cur.fetchall()))
+
+                if method == "POST":
+                    if not body.get("reason"):
+                        return err("reason required")
+                    cur.execute("""
+                        INSERT INTO cash_restrictions
+                            (driver_id, driver_name, reason, restriction_type, limit_amount, is_active, created_by, expires_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
+                    """, (
+                        int(body.get("driver_id")) if body.get("driver_id") else None,
+                        body.get("driver_name") or None,
+                        body.get("reason"),
+                        body.get("restriction_type", "block"),
+                        float(body.get("limit_amount")) if body.get("limit_amount") else None,
+                        True,
+                        body.get("created_by") or None,
+                        body.get("expires_at") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    if not item_id:
+                        return err("id required")
+                    cur.execute("""
+                        UPDATE cash_restrictions SET
+                            driver_id=%s, driver_name=%s, reason=%s, restriction_type=%s,
+                            limit_amount=%s, is_active=%s, expires_at=%s
+                        WHERE id=%s RETURNING *
+                    """, (
+                        int(body.get("driver_id")) if body.get("driver_id") else None,
+                        body.get("driver_name") or None,
+                        body.get("reason"),
+                        body.get("restriction_type", "block"),
+                        float(body.get("limit_amount")) if body.get("limit_amount") else None,
+                        bool(body.get("is_active", True)),
+                        body.get("expires_at") or None,
+                        item_id,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "DELETE":
+                    if not item_id:
+                        return err("id required")
+                    cur.execute("UPDATE cash_restrictions SET is_active = FALSE WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
     return err("Not found", 404)

@@ -192,4 +192,16 @@ export const api = {
   createCash: (data: object) => req("POST", "cash", data),
   updateCash: (id: number, data: object) => req("PUT", "cash", data, { id: String(id) }),
   deleteCash: (id: number) => req("DELETE", "cash", undefined, { id: String(id) }),
+
+  // Cashier reports
+  getCashierReport: (date: string, organization?: string) =>
+    req("GET", "cashier_report", undefined, { date, ...(organization ? { organization } : {}) }),
+  saveCashierReport: (data: object) => req("POST", "cashier_report", data),
+  deleteCashierReport: (id: number) => req("DELETE", "cashier_report", undefined, { id: String(id) }),
+
+  // Cash restrictions
+  getCashRestrictions: () => req("GET", "cash_restriction"),
+  createCashRestriction: (data: object) => req("POST", "cash_restriction", data),
+  updateCashRestriction: (id: number, data: object) => req("PUT", "cash_restriction", data, { id: String(id) }),
+  deleteCashRestriction: (id: number) => req("DELETE", "cash_restriction", undefined, { id: String(id) }),
 };

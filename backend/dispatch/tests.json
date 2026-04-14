@@ -104,6 +104,20 @@
       "path": "/?resource=cash",
       "expectedStatus": 200,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET cashier_report missing date",
+      "method": "GET",
+      "path": "/?resource=cashier_report",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET cash_restriction",
+      "method": "GET",
+      "path": "/?resource=cash_restriction",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
     }
   ]
 }
