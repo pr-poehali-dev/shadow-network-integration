@@ -408,6 +408,34 @@ def handler(event: dict, context) -> dict:
                     conn.commit()
                     return ok({"deleted": True})
 
+    # --- SCHEDULE REVENUE PATCH (из кассы) ---
+    if resource == "schedule_revenue":
+        """Обновляет только поля выручки у записи наряда — вызывается из кассы."""
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "OPTIONS":
+                    return ok({})
+                if method == "PATCH":
+                    entry_id = body.get("id")
+                    if not entry_id:
+                        return err("id required")
+                    revenue_cash = float(body["revenue_cash"]) if body.get("revenue_cash") is not None else None
+                    revenue_cashless = float(body["revenue_cashless"]) if body.get("revenue_cashless") is not None else None
+                    revenue_total = float(body["revenue_total"]) if body.get("revenue_total") is not None else None
+                    fuel_spent = float(body["fuel_spent"]) if body.get("fuel_spent") is not None else None
+                    fuel_price_override = float(body["fuel_price_override"]) if body.get("fuel_price_override") is not None else None
+                    cur.execute("""
+                        UPDATE schedule_entries
+                        SET revenue_cash = %s,
+                            revenue_cashless = %s,
+                            revenue_total = %s,
+                            fuel_spent = COALESCE(%s, fuel_spent),
+                            fuel_price_override = COALESCE(%s, fuel_price_override)
+                        WHERE id = %s
+                    """, (revenue_cash, revenue_cashless, revenue_total, fuel_spent, fuel_price_override, entry_id))
+                    conn.commit()
+                    return ok({"updated": True})
+
     # --- ROUTE GRAPHS ---
     if resource == "graphs":
         with get_conn() as conn:

@@ -202,6 +202,14 @@
       "path": "/?resource=overtime_report",
       "expectedStatus": 400,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "PATCH schedule_revenue missing id",
+      "method": "PATCH",
+      "path": "/?resource=schedule_revenue",
+      "body": {"revenue_cash": 500, "revenue_cashless": 1000, "revenue_total": 1500},
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
     }
   ]
 }

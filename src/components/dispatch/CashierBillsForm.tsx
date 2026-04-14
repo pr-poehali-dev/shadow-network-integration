@@ -33,6 +33,7 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
   async function save() {
     setSaving(true);
     const fuelCashFinal = fuelCash ? parseFloat(fuelCash) : autoFuelCash || 0;
+    const cashlessVal = parseFloat(cashless) || 0;
     await api.saveCashierReport({
       report_date: date,
       schedule_entry_id: row.schedule_entry_id,
@@ -43,7 +44,7 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
       graph_number: row.graph_number,
       organization: row.organization,
       is_overtime: row.is_overtime,
-      cashless_amount: parseFloat(cashless) || 0,
+      cashless_amount: cashlessVal,
       notes: notes || null,
       created_by: user?.full_name || null,
       fuel_cash_amount: fuelCashFinal,
@@ -51,6 +52,17 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
       fuel_price_per_liter: fuelPrice ? parseFloat(fuelPrice) : null,
       ...bills,
     });
+    // Синхронизируем данные кассы в наряд
+    if (row.schedule_entry_id) {
+      await api.patchScheduleRevenue({
+        id: row.schedule_entry_id,
+        revenue_cash: cashTotal,
+        revenue_cashless: cashlessVal,
+        revenue_total: cashTotal + cashlessVal,
+        fuel_spent: fuelCashFinal > 0 && fuelLiters ? parseFloat(fuelLiters) : null,
+        fuel_price_override: fuelPrice ? parseFloat(fuelPrice) : null,
+      });
+    }
     setSaving(false);
     onSaved();
     onClose();

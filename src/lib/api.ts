@@ -281,6 +281,9 @@ export const api = {
   saveCashierReport: (data: object) => req("POST", "cashier_report", data),
   deleteCashierReport: (id: number) => req("DELETE", "cashier_report", undefined, { id: String(id) }),
 
+  // Sync cashier → schedule (only revenue fields)
+  patchScheduleRevenue: (data: object) => req("PATCH", "schedule_revenue", data),
+
   // Cash restrictions
   getCashRestrictions: () => req("GET", "cash_restriction"),
   createCashRestriction: (data: object) => req("POST", "cash_restriction", data),
