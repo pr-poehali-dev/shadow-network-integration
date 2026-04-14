@@ -205,21 +205,24 @@ def handler(event: dict, context) -> dict:
                     return ok(list(cur.fetchall()))
                 if method == "POST":
                     cur.execute(
-                        "INSERT INTO drivers (full_name, phone, birth_date, snils, inn, license_number, license_date, is_official) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING *",
+                        "INSERT INTO drivers (full_name, phone, birth_date, snils, inn, license_number, license_date, is_official, work_schedule, schedule_start_date) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *",
                         (body.get("full_name"), body.get("phone") or None, body.get("birth_date") or None,
                          body.get("snils") or None, body.get("inn") or None,
                          body.get("license_number") or None, body.get("license_date") or None,
-                         body.get("is_official", True))
+                         body.get("is_official", True),
+                         body.get("work_schedule") or None, body.get("schedule_start_date") or None)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
                 if method == "PUT":
                     cur.execute(
-                        "UPDATE drivers SET full_name=%s, phone=%s, birth_date=%s, snils=%s, inn=%s, license_number=%s, license_date=%s, is_official=%s WHERE id=%s RETURNING *",
+                        "UPDATE drivers SET full_name=%s, phone=%s, birth_date=%s, snils=%s, inn=%s, license_number=%s, license_date=%s, is_official=%s, work_schedule=%s, schedule_start_date=%s WHERE id=%s RETURNING *",
                         (body.get("full_name"), body.get("phone") or None, body.get("birth_date") or None,
                          body.get("snils") or None, body.get("inn") or None,
                          body.get("license_number") or None, body.get("license_date") or None,
-                         body.get("is_official", True), item_id)
+                         body.get("is_official", True),
+                         body.get("work_schedule") or None, body.get("schedule_start_date") or None,
+                         item_id)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
@@ -237,17 +240,20 @@ def handler(event: dict, context) -> dict:
                     return ok(list(cur.fetchall()))
                 if method == "POST":
                     cur.execute(
-                        "INSERT INTO conductors (full_name, phone, birth_date, snils, inn) VALUES (%s, %s, %s, %s, %s) RETURNING *",
+                        "INSERT INTO conductors (full_name, phone, birth_date, snils, inn, work_schedule, schedule_start_date) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *",
                         (body.get("full_name"), body.get("phone") or None, body.get("birth_date") or None,
-                         body.get("snils") or None, body.get("inn") or None)
+                         body.get("snils") or None, body.get("inn") or None,
+                         body.get("work_schedule") or None, body.get("schedule_start_date") or None)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
                 if method == "PUT":
                     cur.execute(
-                        "UPDATE conductors SET full_name=%s, phone=%s, birth_date=%s, snils=%s, inn=%s WHERE id=%s RETURNING *",
+                        "UPDATE conductors SET full_name=%s, phone=%s, birth_date=%s, snils=%s, inn=%s, work_schedule=%s, schedule_start_date=%s WHERE id=%s RETURNING *",
                         (body.get("full_name"), body.get("phone") or None, body.get("birth_date") or None,
-                         body.get("snils") or None, body.get("inn") or None, item_id)
+                         body.get("snils") or None, body.get("inn") or None,
+                         body.get("work_schedule") or None, body.get("schedule_start_date") or None,
+                         item_id)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
@@ -2195,5 +2201,186 @@ def handler(event: dict, context) -> dict:
                     cur.execute("UPDATE leasing_contracts SET is_active=FALSE, updated_at=NOW() WHERE id=%s", (item_id,))
                     conn.commit()
                     return ok({"deleted": True})
+
+    # --- SCHEDULE_SUGGEST: предложение экипажей на неделю вперёд ---
+    if resource == "schedule_suggest":
+        if method != "GET":
+            return err("GET required")
+        from_date = params.get("from_date")
+        if not from_date:
+            return err("from_date required")
+        import datetime as _dt
+
+        def parse_schedule(ws):
+            """Парсит '3/3', '5/2', '2/2', '6/1' -> (work_days, rest_days)"""
+            if not ws or ws == "individual":
+                return None
+            try:
+                parts = ws.strip().split("/")
+                return (int(parts[0]), int(parts[1]))
+            except Exception:
+                return None
+
+        def is_work_day(ws, start_date_str, check_date_str):
+            """Проверяет, является ли check_date рабочим днём исходя из цикла"""
+            parsed = parse_schedule(ws)
+            if not parsed:
+                return None  # неизвестно
+            work_days, rest_days = parsed
+            cycle = work_days + rest_days
+            if not start_date_str:
+                return None
+            start = _dt.date.fromisoformat(start_date_str)
+            check = _dt.date.fromisoformat(check_date_str)
+            delta = (check - start).days
+            if delta < 0:
+                delta = (-delta) % cycle
+            else:
+                delta = delta % cycle
+            return delta < work_days
+
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # 7 дней начиная с from_date
+                dates = []
+                base = _dt.date.fromisoformat(from_date)
+                for i in range(7):
+                    dates.append(str(base + _dt.timedelta(days=i)))
+
+                # Все водители и кондукторы с их графиками
+                cur.execute("SELECT id, full_name, work_schedule, schedule_start_date FROM drivers ORDER BY full_name")
+                drivers_all = list(cur.fetchall())
+                cur.execute("SELECT id, full_name, work_schedule, schedule_start_date FROM conductors ORDER BY full_name")
+                conductors_all = list(cur.fetchall())
+
+                # Кол-во смен за текущий месяц (для расчёта переработки)
+                month_start = base.strftime("%Y-%m-01")
+                month_end = base.strftime("%Y-%m-") + "28"  # запас
+                cur.execute("""
+                    SELECT driver_id, COUNT(*) as shifts
+                    FROM schedule_entries
+                    WHERE work_date >= %s AND work_date <= CURRENT_DATE
+                      AND driver_id IS NOT NULL
+                    GROUP BY driver_id
+                """, (month_start,))
+                driver_shifts = {r["driver_id"]: r["shifts"] for r in cur.fetchall()}
+
+                cur.execute("""
+                    SELECT conductor_id, COUNT(*) as shifts
+                    FROM schedule_entries
+                    WHERE work_date >= %s AND work_date <= CURRENT_DATE
+                      AND conductor_id IS NOT NULL
+                    GROUP BY conductor_id
+                """, (month_start,))
+                conductor_shifts = {r["conductor_id"]: r["shifts"] for r in cur.fetchall()}
+
+                OVERTIME_THRESHOLD = 18
+                OVERTIME_PAY = 700
+
+                suggestion = {}
+                for d in dates:
+                    day_drivers = []
+                    day_conductors = []
+
+                    for drv in drivers_all:
+                        ws = drv.get("work_schedule")
+                        ssd = drv.get("schedule_start_date")
+                        if ws and ssd:
+                            result = is_work_day(ws, str(ssd)[:10], d)
+                            status = "work" if result else "rest"
+                        else:
+                            status = "unknown"
+                        shifts_so_far = int(driver_shifts.get(drv["id"], 0))
+                        day_drivers.append({
+                            "id": drv["id"],
+                            "full_name": drv["full_name"],
+                            "work_schedule": ws,
+                            "status": status,
+                            "shifts_this_month": shifts_so_far,
+                            "is_overtime": shifts_so_far >= OVERTIME_THRESHOLD,
+                            "overtime_pay": (shifts_so_far - OVERTIME_THRESHOLD) * OVERTIME_PAY if shifts_so_far > OVERTIME_THRESHOLD else 0,
+                        })
+
+                    for cnd in conductors_all:
+                        ws = cnd.get("work_schedule")
+                        ssd = cnd.get("schedule_start_date")
+                        if ws and ssd:
+                            result = is_work_day(ws, str(ssd)[:10], d)
+                            status = "work" if result else "rest"
+                        else:
+                            status = "unknown"
+                        shifts_so_far = int(conductor_shifts.get(cnd["id"], 0))
+                        day_conductors.append({
+                            "id": cnd["id"],
+                            "full_name": cnd["full_name"],
+                            "work_schedule": ws,
+                            "status": status,
+                            "shifts_this_month": shifts_so_far,
+                            "is_overtime": shifts_so_far >= OVERTIME_THRESHOLD,
+                            "overtime_pay": (shifts_so_far - OVERTIME_THRESHOLD) * OVERTIME_PAY if shifts_so_far > OVERTIME_THRESHOLD else 0,
+                        })
+
+                    suggestion[d] = {
+                        "drivers": day_drivers,
+                        "conductors": day_conductors,
+                        "available_drivers": [x for x in day_drivers if x["status"] == "work"],
+                        "available_conductors": [x for x in day_conductors if x["status"] == "work"],
+                    }
+
+                return ok({"dates": dates, "suggestion": suggestion, "overtime_threshold": OVERTIME_THRESHOLD, "overtime_pay_per_shift": OVERTIME_PAY})
+
+    # --- OVERTIME_REPORT: отчёт по переработкам за месяц ---
+    if resource == "overtime_report":
+        year = params.get("year")
+        month = params.get("month")
+        if not year or not month:
+            return err("year and month required")
+        import calendar as _cal
+        y, m = int(year), int(month)
+        date_from = f"{y:04d}-{m:02d}-01"
+        last_day = _cal.monthrange(y, m)[1]
+        date_to = f"{y:04d}-{m:02d}-{last_day:02d}"
+        OVERTIME_THRESHOLD = 18
+        OVERTIME_PAY = 700
+
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT d.id, d.full_name, 'driver' as person_type,
+                        COUNT(se.id) as total_shifts,
+                        GREATEST(COUNT(se.id) - %s, 0) as overtime_shifts,
+                        GREATEST(COUNT(se.id) - %s, 0) * %s as overtime_pay
+                    FROM drivers d
+                    LEFT JOIN schedule_entries se ON se.driver_id = d.id
+                        AND se.work_date BETWEEN %s AND %s
+                    GROUP BY d.id, d.full_name
+                    HAVING COUNT(se.id) > 0
+                    ORDER BY total_shifts DESC
+                """, (OVERTIME_THRESHOLD, OVERTIME_THRESHOLD, OVERTIME_PAY, date_from, date_to))
+                driver_rows = list(cur.fetchall())
+
+                cur.execute("""
+                    SELECT c.id, c.full_name, 'conductor' as person_type,
+                        COUNT(se.id) as total_shifts,
+                        GREATEST(COUNT(se.id) - %s, 0) as overtime_shifts,
+                        GREATEST(COUNT(se.id) - %s, 0) * %s as overtime_pay
+                    FROM conductors c
+                    LEFT JOIN schedule_entries se ON se.conductor_id = c.id
+                        AND se.work_date BETWEEN %s AND %s
+                    GROUP BY c.id, c.full_name
+                    HAVING COUNT(se.id) > 0
+                    ORDER BY total_shifts DESC
+                """, (OVERTIME_THRESHOLD, OVERTIME_THRESHOLD, OVERTIME_PAY, date_from, date_to))
+                conductor_rows = list(cur.fetchall())
+
+                total_overtime_pay = sum(int(r["overtime_pay"]) for r in driver_rows + conductor_rows)
+                return ok({
+                    "year": y, "month": m,
+                    "drivers": driver_rows,
+                    "conductors": conductor_rows,
+                    "total_overtime_pay": total_overtime_pay,
+                    "overtime_threshold": OVERTIME_THRESHOLD,
+                    "overtime_pay_per_shift": OVERTIME_PAY,
+                })
 
     return err("Not found", 404)

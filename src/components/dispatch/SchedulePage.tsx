@@ -5,9 +5,11 @@ import Icon from "@/components/ui/icon";
 import { Entry, Route, Bus, Driver, Conductor, Terminal, today, fmtMoney } from "./scheduleTypes";
 import { handlePrint } from "./scheduleWaybill";
 import ScheduleRouteTable from "./ScheduleRouteTable";
+import ScheduleSuggest from "./ScheduleSuggest";
 
 export default function SchedulePage() {
   const [date, setDate] = useState(today());
+  const [showSuggest, setShowSuggest] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [buses, setBuses] = useState<Bus[]>([]);
@@ -204,14 +206,23 @@ export default function SchedulePage() {
           className="border border-neutral-300 px-2 py-2 rounded hover:bg-neutral-100 transition-colors cursor-pointer text-neutral-500" title="Следующая неделя">
           <Icon name="ChevronRight" size={16} />
         </button>
-        {entries.length > 0 && (
-          <button onClick={() => handlePrint(date, entries)}
-            className="ml-auto flex items-center gap-2 border border-neutral-300 px-4 py-2 text-sm rounded hover:bg-neutral-100 transition-colors cursor-pointer text-neutral-700">
-            <Icon name="Printer" size={15} />
-            Распечатать
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setShowSuggest(true)}
+            className="flex items-center gap-2 border border-blue-200 bg-blue-50 text-blue-700 px-4 py-2 text-sm rounded hover:bg-blue-100 transition-colors cursor-pointer">
+            <Icon name="CalendarCheck2" size={15} />
+            Предложения на неделю
           </button>
-        )}
+          {entries.length > 0 && (
+            <button onClick={() => handlePrint(date, entries)}
+              className="flex items-center gap-2 border border-neutral-300 px-4 py-2 text-sm rounded hover:bg-neutral-100 transition-colors cursor-pointer text-neutral-700">
+              <Icon name="Printer" size={15} />
+              Распечатать
+            </button>
+          )}
+        </div>
       </div>
+
+      {showSuggest && <ScheduleSuggest onClose={() => setShowSuggest(false)} currentDate={date} />}
 
       {/* Навигация по дням недели */}
       <div className="flex gap-1 mb-6 overflow-x-auto pb-1">

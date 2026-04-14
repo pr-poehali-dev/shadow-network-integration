@@ -188,6 +188,20 @@
       "path": "/?resource=leasing_contracts",
       "expectedStatus": 200,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET schedule_suggest missing date",
+      "method": "GET",
+      "path": "/?resource=schedule_suggest",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET overtime_report missing params",
+      "method": "GET",
+      "path": "/?resource=overtime_report",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
     }
   ]
 }

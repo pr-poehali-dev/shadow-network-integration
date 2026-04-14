@@ -242,6 +242,16 @@ interface DriverFormProps {
   onClose: () => void;
 }
 
+const WORK_SCHEDULES = [
+  { value: "", label: "Не задан" },
+  { value: "3/3", label: "3 через 3" },
+  { value: "5/2", label: "5 через 2 (пн-пт)" },
+  { value: "2/2", label: "2 через 2" },
+  { value: "6/1", label: "6 через 1" },
+  { value: "4/3", label: "4 через 3" },
+  { value: "individual", label: "Индивидуальный" },
+];
+
 function DriverForm({ initial, onSaved, onClose }: DriverFormProps) {
   const [form, setForm] = useState({
     full_name: initial?.full_name ?? "",
@@ -252,13 +262,21 @@ function DriverForm({ initial, onSaved, onClose }: DriverFormProps) {
     license_number: initial?.license_number ?? "",
     license_date: initial?.license_date ?? "",
     is_official: initial?.is_official ?? true,
+    work_schedule: (initial as Record<string,unknown>)?.work_schedule as string ?? "",
+    schedule_start_date: (initial as Record<string,unknown>)?.schedule_start_date as string ?? "",
   });
   const [saving, setSaving] = useState(false);
 
   async function save() {
     if (!form.full_name.trim()) return;
     setSaving(true);
-    const data = { ...form, birth_date: form.birth_date || null, license_date: form.license_date || null };
+    const data = {
+      ...form,
+      birth_date: form.birth_date || null,
+      license_date: form.license_date || null,
+      work_schedule: form.work_schedule || null,
+      schedule_start_date: form.schedule_start_date || null,
+    };
     if (initial?.id) { await api.updateDriver(initial.id, data); }
     else { await api.createDriver(data as Parameters<typeof api.createDriver>[0]); }
     catalogCache.invalidateDrivers();
@@ -304,6 +322,24 @@ function DriverForm({ initial, onSaved, onClose }: DriverFormProps) {
                   }`}>{o.l}</button>
               ))}
             </div>
+            {/* График работы */}
+            <div className="col-span-2 border-t border-neutral-100 pt-3 mt-1">
+              <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">График работы (для планирования)</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-600 mb-1">Предпочтительный график</label>
+                  <select value={form.work_schedule} onChange={e => setForm(p => ({...p, work_schedule: e.target.value}))}
+                    className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm">
+                    {WORK_SCHEDULES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-neutral-600 mb-1">Дата начала цикла</label>
+                  <input type="date" value={form.schedule_start_date} onChange={e => setForm(p => ({...p, schedule_start_date: e.target.value}))}
+                    className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex gap-3 px-6 py-4 border-t border-neutral-200">
@@ -332,14 +368,17 @@ function ConductorForm({ initial, onSaved, onClose }: ConductorFormProps) {
     birth_date: initial?.birth_date ?? "",
     snils: initial?.snils ?? "",
     inn: initial?.inn ?? "",
+    work_schedule: (initial as Record<string,unknown>)?.work_schedule as string ?? "",
+    schedule_start_date: (initial as Record<string,unknown>)?.schedule_start_date as string ?? "",
   });
   const [saving, setSaving] = useState(false);
 
   async function save() {
     if (!form.full_name.trim()) return;
     setSaving(true);
-    if (initial?.id) { await api.updateConductor(initial.id, form); }
-    else { await api.createConductor(form as Parameters<typeof api.createConductor>[0]); }
+    const data = { ...form, work_schedule: form.work_schedule || null, schedule_start_date: form.schedule_start_date || null };
+    if (initial?.id) { await api.updateConductor(initial.id, data); }
+    else { await api.createConductor(data as Parameters<typeof api.createConductor>[0]); }
     catalogCache.invalidateConductors();
     setSaving(false);
     onSaved();
@@ -370,6 +409,23 @@ function ConductorForm({ initial, onSaved, onClose }: ConductorFormProps) {
                   className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm" />
               </div>
             ))}
+            <div className="col-span-2 border-t border-neutral-100 pt-3 mt-1">
+              <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">График работы</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-600 mb-1">График</label>
+                  <select value={form.work_schedule} onChange={e => setForm(p => ({...p, work_schedule: e.target.value}))}
+                    className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm">
+                    {WORK_SCHEDULES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-neutral-600 mb-1">Начало цикла</label>
+                  <input type="date" value={form.schedule_start_date} onChange={e => setForm(p => ({...p, schedule_start_date: e.target.value}))}
+                    className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex gap-3 px-6 py-4 border-t border-neutral-200">

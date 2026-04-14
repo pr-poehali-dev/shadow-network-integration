@@ -193,6 +193,10 @@ export const api = {
   updateCash: (id: number, data: object) => req("PUT", "cash", data, { id: String(id) }),
   deleteCash: (id: number) => req("DELETE", "cash", undefined, { id: String(id) }),
 
+  // Schedule suggest & overtime
+  getScheduleSuggest: (from_date: string) => req("GET", "schedule_suggest", undefined, { from_date }),
+  getOvertimeReport: (year: number, month: number) => req("GET", "overtime_report", undefined, { year: String(year), month: String(month) }),
+
   // Accounting
   getBankTransactions: (params?: Record<string,string>) => req("GET", "bank_transactions", undefined, params),
   createBankTransaction: (data: object) => req("POST", "bank_transactions", data),
