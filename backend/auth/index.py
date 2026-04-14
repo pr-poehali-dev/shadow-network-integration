@@ -77,15 +77,13 @@ def handler(event: dict, context) -> dict:
 
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                if not password:
-                    return err("Введите пароль", 400)
                 cur.execute(
-                    "SELECT * FROM users WHERE username = %s AND is_active = true AND password_hash = %s",
-                    (username, hash_password(password))
+                    "SELECT * FROM users WHERE username = %s AND is_active = true",
+                    (username,)
                 )
                 user = cur.fetchone()
                 if not user:
-                    return err("Неверный логин или пароль", 401)
+                    return err("Пользователь не найден", 401)
 
                 token = secrets.token_hex(32)
                 expires = datetime.now() + timedelta(days=30)
