@@ -633,6 +633,52 @@ export default function SalaryPage() {
           )}
         </div>
       )}
+
+      {/* ФОТ — итоговая строка */}
+      {!driverLoading && !itrLoading && driverData && (
+        (() => {
+          const driversTotal = driverData.drivers.reduce((s, d) => {
+            const key = `d-${d.id}`;
+            const ed = getCrewEdit(key);
+            return s + calcCrewTotal({ id: d.id, type: "driver", full_name: d.full_name, is_official: d.is_official, total_earned: d.total_earned, shifts_count: d.shifts.length, ...ed });
+          }, 0);
+          const conductorsTotal = driverData.conductors.reduce((s, c) => {
+            const key = `c-${c.id}`;
+            const ed = getCrewEdit(key);
+            return s + calcCrewTotal({ id: c.id, type: "conductor", full_name: c.full_name, total_earned: c.total_earned, shifts_count: c.shifts.length, ...ed });
+          }, 0);
+          const itrTotal = itrData.reduce((s, emp) => {
+            const e = itrEdit[emp.id];
+            if (!e) return s;
+            return s + calcItrEarned({ ...emp, days_worked: Number(e.days_worked) || 0 }) + (Number(e.bonus) || 0);
+          }, 0);
+          const grandTotal = driversTotal + conductorsTotal + itrTotal;
+
+          return (
+            <div className="mt-8 border-t-2 border-neutral-300 pt-5">
+              <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wide mb-3">Фонд оплаты труда — {MONTHS[month - 1]} {year}</h3>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  { label: "Водители", value: driversTotal, icon: "User" },
+                  { label: "Кондукторы", value: conductorsTotal, icon: "Users" },
+                  { label: "ИТР", value: itrTotal, icon: "Briefcase" },
+                  { label: "Итого ФОТ", value: grandTotal, icon: "Banknote", bold: true },
+                ].map(item => (
+                  <div key={item.label} className={`rounded p-4 border ${item.bold ? "bg-neutral-900 text-white border-neutral-900" : "bg-neutral-50 border-neutral-200"}`}>
+                    <div className={`flex items-center gap-2 mb-1 ${item.bold ? "text-neutral-300" : "text-neutral-500"}`}>
+                      <Icon name={item.icon} size={13} />
+                      <span className="text-xs">{item.label}</span>
+                    </div>
+                    <div className={`text-lg font-bold ${item.bold ? "text-white" : "text-neutral-900"}`}>
+                      {fmt(item.value)} ₽
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()
+      )}
     </div>
   );
 }
