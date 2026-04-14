@@ -2380,6 +2380,159 @@ def handler(event: dict, context) -> dict:
                     "conductor_overtime_pay": CONDUCTOR_OVERTIME_PAY,
                 })
 
+    # --- ACCIDENTS: учёт ДТП для раздела БДД ---
+    if resource == "accidents":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    accident_id = params.get("id")
+                    if accident_id:
+                        cur.execute("SELECT * FROM accidents WHERE id = %s", (int(accident_id),))
+                        row = cur.fetchone()
+                        return ok(dict(row)) if row else err("Not found", 404)
+                    org = params.get("organization")
+                    status_f = params.get("status")
+                    date_from = params.get("date_from")
+                    date_to = params.get("date_to")
+                    conditions, vals = [], []
+                    if org: conditions.append("organization = %s"); vals.append(org)
+                    if status_f: conditions.append("status = %s"); vals.append(status_f)
+                    if date_from: conditions.append("accident_date >= %s"); vals.append(date_from)
+                    if date_to: conditions.append("accident_date <= %s"); vals.append(date_to)
+                    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+                    cur.execute(f"SELECT * FROM accidents {where} ORDER BY accident_date DESC, created_at DESC", vals)
+                    return ok(list(cur.fetchall()))
+
+                if method == "POST":
+                    if not body.get("accident_date"):
+                        return err("accident_date required")
+                    cur.execute("""
+                        INSERT INTO accidents
+                            (accident_date, accident_time, organization, location,
+                             bus_board_number, bus_gov_number, bus_model,
+                             driver_name, driver_license, route_number, graph_number,
+                             description, weather_conditions, road_conditions, visibility,
+                             victims_count, victims_info, other_vehicles,
+                             fault_side, damage_description, damage_amount,
+                             status, investigator_name, investigation_result,
+                             documents, schedule_entry_id)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        RETURNING *
+                    """, (
+                        body.get("accident_date"),
+                        body.get("accident_time") or None,
+                        body.get("organization") or None,
+                        body.get("location") or None,
+                        body.get("bus_board_number") or None,
+                        body.get("bus_gov_number") or None,
+                        body.get("bus_model") or None,
+                        body.get("driver_name") or None,
+                        body.get("driver_license") or None,
+                        body.get("route_number") or None,
+                        int(body.get("graph_number")) if body.get("graph_number") else None,
+                        body.get("description") or None,
+                        body.get("weather_conditions") or None,
+                        body.get("road_conditions") or None,
+                        body.get("visibility") or None,
+                        int(body.get("victims_count") or 0),
+                        body.get("victims_info") or None,
+                        body.get("other_vehicles") or None,
+                        body.get("fault_side") or None,
+                        body.get("damage_description") or None,
+                        float(body.get("damage_amount")) if body.get("damage_amount") else None,
+                        body.get("status", "new"),
+                        body.get("investigator_name") or None,
+                        body.get("investigation_result") or None,
+                        json.dumps(body.get("documents", [])),
+                        int(body.get("schedule_entry_id")) if body.get("schedule_entry_id") else None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    if not item_id: return err("id required")
+                    cur.execute("""
+                        UPDATE accidents SET
+                            accident_date=%s, accident_time=%s, organization=%s, location=%s,
+                            bus_board_number=%s, bus_gov_number=%s, bus_model=%s,
+                            driver_name=%s, driver_license=%s, route_number=%s, graph_number=%s,
+                            description=%s, weather_conditions=%s, road_conditions=%s, visibility=%s,
+                            victims_count=%s, victims_info=%s, other_vehicles=%s,
+                            fault_side=%s, damage_description=%s, damage_amount=%s,
+                            status=%s, investigator_name=%s, investigation_result=%s,
+                            documents=%s, updated_at=NOW()
+                        WHERE id=%s RETURNING *
+                    """, (
+                        body.get("accident_date"),
+                        body.get("accident_time") or None,
+                        body.get("organization") or None,
+                        body.get("location") or None,
+                        body.get("bus_board_number") or None,
+                        body.get("bus_gov_number") or None,
+                        body.get("bus_model") or None,
+                        body.get("driver_name") or None,
+                        body.get("driver_license") or None,
+                        body.get("route_number") or None,
+                        int(body.get("graph_number")) if body.get("graph_number") else None,
+                        body.get("description") or None,
+                        body.get("weather_conditions") or None,
+                        body.get("road_conditions") or None,
+                        body.get("visibility") or None,
+                        int(body.get("victims_count") or 0),
+                        body.get("victims_info") or None,
+                        body.get("other_vehicles") or None,
+                        body.get("fault_side") or None,
+                        body.get("damage_description") or None,
+                        float(body.get("damage_amount")) if body.get("damage_amount") else None,
+                        body.get("status", "new"),
+                        body.get("investigator_name") or None,
+                        body.get("investigation_result") or None,
+                        json.dumps(body.get("documents", [])),
+                        item_id,
+                    ))
+                    conn.commit()
+                    row = cur.fetchone()
+                    return ok(dict(row)) if row else err("Not found", 404)
+
+                if method == "DELETE":
+                    if not item_id: return err("id required")
+                    cur.execute("DELETE FROM accidents WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- ACCIDENT_UPLOAD: загрузка документов к ДТП в S3 ---
+    if resource == "accident_upload":
+        if method != "POST":
+            return err("POST required")
+        import boto3, base64, uuid as _uuid
+        accident_id = body.get("accident_id")
+        file_data_b64 = body.get("file_data")
+        file_name = body.get("file_name", "document.pdf")
+        content_type = body.get("content_type", "application/pdf")
+        if not accident_id or not file_data_b64:
+            return err("accident_id and file_data required")
+        raw = base64.b64decode(file_data_b64)
+        ext = file_name.rsplit(".", 1)[-1] if "." in file_name else "bin"
+        key = f"accidents/{accident_id}/{_uuid.uuid4().hex}.{ext}"
+        s3 = boto3.client("s3",
+            endpoint_url="https://bucket.poehali.dev",
+            aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+            aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+        )
+        s3.put_object(Bucket="files", Key=key, Body=raw, ContentType=content_type)
+        cdn_url = f"https://cdn.poehali.dev/projects/{os.environ['AWS_ACCESS_KEY_ID']}/bucket/{key}"
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT documents FROM accidents WHERE id = %s", (int(accident_id),))
+                acc_row = cur.fetchone()
+                if not acc_row: return err("Accident not found", 404)
+                docs = acc_row["documents"] if acc_row["documents"] else []
+                docs.append({"url": cdn_url, "name": file_name, "content_type": content_type})
+                cur.execute("UPDATE accidents SET documents = %s, updated_at = NOW() WHERE id = %s",
+                            (json.dumps(docs), int(accident_id)))
+                conn.commit()
+        return ok({"url": cdn_url, "key": key, "name": file_name})
+
     # --- OVERTIME_REPORT: отчёт по переработкам за месяц ---
     if resource == "overtime_report":
         year = params.get("year")

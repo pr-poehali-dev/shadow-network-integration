@@ -49,12 +49,13 @@ interface Props {
   onUpdate: (entry: Entry, fields: Record<string, unknown>) => void;
   onSelectUpdate: (entry: Entry, field: string, value: string) => void;
   onDelete: (id: number) => void;
+  onAccident?: (entry: Entry) => void;
 }
 
 export default function ScheduleEntryRow({
   entry, date, buses, drivers, conductors, orgTerminals,
   ticketPrice, expandedId, setExpandedId,
-  onUpdate, onSelectUpdate, onDelete,
+  onUpdate, onSelectUpdate, onDelete, onAccident,
 }: Props) {
   const isExpanded = expandedId === entry.id;
   const isAbsent = !!entry.absence_reason;
@@ -212,6 +213,14 @@ export default function ScheduleEntryRow({
             className="text-neutral-400 hover:text-blue-600 transition-colors cursor-pointer">
             <Icon name="FileText" size={15} />
           </button>
+          {onAccident && (
+            <button
+              onClick={() => onAccident(entry)}
+              title="Зарегистрировать ДТП"
+              className="text-neutral-400 hover:text-orange-500 transition-colors cursor-pointer">
+              <Icon name="AlertTriangle" size={15} />
+            </button>
+          )}
           <button
             onClick={() => onDelete(entry.id)}
             title="Удалить"

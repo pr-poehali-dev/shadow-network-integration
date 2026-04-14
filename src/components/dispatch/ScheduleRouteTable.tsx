@@ -18,6 +18,7 @@ interface Props {
   onUpdate: (entry: Entry, fields: Record<string, unknown>) => void;
   onSelectUpdate: (entry: Entry, field: string, value: string) => void;
   onDelete: (id: number) => void;
+  onAccident?: (entry: Entry) => void;
   calcEntryTotal: (e: Entry) => number;
   calcEntryTickets: (e: Entry) => number;
 }
@@ -26,7 +27,7 @@ export default function ScheduleRouteTable({
   routeNumber, routeName, maxGraphs, items, date,
   buses, drivers, conductors, orgTerminals,
   ticketPrice, expandedId, setExpandedId,
-  onUpdate, onSelectUpdate, onDelete,
+  onUpdate, onSelectUpdate, onDelete, onAccident,
   calcEntryTotal, calcEntryTickets,
 }: Props) {
   return (
@@ -70,6 +71,7 @@ export default function ScheduleRouteTable({
               onUpdate={onUpdate}
               onSelectUpdate={onSelectUpdate}
               onDelete={onDelete}
+              onAccident={onAccident}
             />
           ))}
           {items.length > 1 && (() => {

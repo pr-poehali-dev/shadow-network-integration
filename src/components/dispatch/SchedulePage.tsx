@@ -7,8 +7,71 @@ import { handlePrint } from "./scheduleWaybill";
 import ScheduleRouteTable from "./ScheduleRouteTable";
 import ScheduleSuggest from "./ScheduleSuggest";
 
-export default function SchedulePage() {
+// Мини-форма быстрой регистрации ДТП из наряда
+function QuickAccidentModal({ entry, date, onClose, onCreated }: {
+  entry: Entry; date: string; onClose: () => void; onCreated?: () => void;
+}) {
+  const bus = (entry as Record<string, unknown>);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    accident_date: date,
+    accident_time: "",
+    location: "",
+    description: "",
+    driver_name: (bus.driver_name as string) || "",
+    bus_board_number: (bus.board_number as string) || "",
+    bus_gov_number: (bus.gov_number as string) || "",
+    route_number: (bus.route_number as string) || "",
+    graph_number: entry.graph_number ? String(entry.graph_number) : "",
+    status: "new",
+    organization: (bus.route_organization as string) || "",
+    schedule_entry_id: entry.id,
+  });
+
+  async function save() {
+    setSaving(true);
+    await api.createAccident({ ...form, graph_number: form.graph_number ? parseInt(form.graph_number) : undefined });
+    setSaving(false);
+    onCreated?.();
+    onClose();
+  }
+
+  const inp = "w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm";
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-5 py-4 border-b bg-red-50 rounded-t-2xl">
+          <Icon name="AlertTriangle" size={18} className="text-red-600" />
+          <span className="font-bold text-neutral-900">Зарегистрировать ДТП</span>
+          <button onClick={onClose} className="ml-auto text-neutral-400 cursor-pointer"><Icon name="X" size={16} /></button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-xs font-medium text-neutral-600 mb-1">Дата</label><input type="date" value={form.accident_date} onChange={e => setForm(f => ({ ...f, accident_date: e.target.value }))} className={inp} /></div>
+            <div><label className="block text-xs font-medium text-neutral-600 mb-1">Время</label><input type="time" value={form.accident_time} onChange={e => setForm(f => ({ ...f, accident_time: e.target.value }))} className={inp} /></div>
+          </div>
+          <div className="bg-neutral-50 rounded-lg px-3 py-2 text-xs text-neutral-600 space-y-0.5">
+            <div>ТС: <b>{form.bus_board_number || "—"}</b> {form.bus_gov_number}</div>
+            <div>Водитель: <b>{form.driver_name || "—"}</b></div>
+            <div>Маршрут: <b>м.{form.route_number} / гр.{form.graph_number || "—"}</b></div>
+          </div>
+          <div><label className="block text-xs font-medium text-neutral-600 mb-1">Место ДТП</label><input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="Адрес, перекрёсток..." className={inp} /></div>
+          <div><label className="block text-xs font-medium text-neutral-600 mb-1">Краткое описание</label><textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="Что произошло..." className={`${inp} resize-none`} /></div>
+        </div>
+        <div className="flex gap-2 px-5 py-4 border-t">
+          <button onClick={onClose} className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg text-neutral-600 cursor-pointer">Отмена</button>
+          <button onClick={save} disabled={saving} className="flex-1 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 cursor-pointer">
+            {saving ? "Сохраняю..." : "Зарегистрировать"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function SchedulePage({ onAccidentCreated }: { onAccidentCreated?: () => void } = {}) {
   const [date, setDate] = useState(today());
+  const [accidentEntry, setAccidentEntry] = useState<Entry | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -189,7 +252,7 @@ export default function SchedulePage() {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-4 mb-4">
-        <h2 className="text-2xl font-bold text-neutral-900">Расписание</h2>
+        <h2 className="text-2xl font-bold text-neutral-900">Наряд</h2>
         <input
           type="date" value={date} onChange={e => setDate(e.target.value)}
           className="border border-neutral-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-neutral-600"
@@ -219,6 +282,14 @@ export default function SchedulePage() {
       </div>
 
       {showSuggest && <ScheduleSuggest onClose={() => setShowSuggest(false)} currentDate={date} />}
+      {accidentEntry && (
+        <QuickAccidentModal
+          entry={accidentEntry}
+          date={date}
+          onClose={() => setAccidentEntry(null)}
+          onCreated={() => { setAccidentEntry(null); onAccidentCreated?.(); }}
+        />
+      )}
 
       {/* Навигация по дням недели */}
       <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
@@ -316,6 +387,7 @@ export default function SchedulePage() {
                 onUpdate={handleUpdate}
                 onSelectUpdate={handleSelectUpdate}
                 onDelete={handleDelete}
+                onAccident={entry => setAccidentEntry(entry)}
                 calcEntryTotal={calcEntryTotal}
                 calcEntryTickets={calcEntryTickets}
               />

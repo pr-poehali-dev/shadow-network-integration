@@ -273,4 +273,12 @@ export const api = {
   createCashRestriction: (data: object) => req("POST", "cash_restriction", data),
   updateCashRestriction: (id: number, data: object) => req("PUT", "cash_restriction", data, { id: String(id) }),
   deleteCashRestriction: (id: number) => req("DELETE", "cash_restriction", undefined, { id: String(id) }),
+
+  // Accidents (БДД)
+  getAccidents: (params?: Record<string, string>) => req("GET", "accidents", undefined, params),
+  getAccident: (id: number) => req("GET", "accidents", undefined, { id: String(id) }),
+  createAccident: (data: object) => req("POST", "accidents", data),
+  updateAccident: (id: number, data: object) => req("PUT", "accidents", data, { id: String(id) }),
+  deleteAccident: (id: number) => req("DELETE", "accidents", undefined, { id: String(id) }),
+  uploadAccidentDoc: (data: object) => req("POST", "accident_upload", data),
 };

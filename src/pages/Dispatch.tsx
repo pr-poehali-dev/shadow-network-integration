@@ -18,10 +18,11 @@ import CashierPage from "@/components/dispatch/CashierPage";
 import RepairPage from "@/components/dispatch/RepairPage";
 import HRPage from "@/components/dispatch/HRPage";
 import AccountingPage from "@/components/dispatch/AccountingPage";
+import BDDPage from "@/components/dispatch/BDDPage";
 import Icon from "@/components/ui/icon";
 
 const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
-  { id: "schedule",         label: "Расписание",           icon: "CalendarDays" },
+  { id: "schedule",         label: "Наряд",                icon: "CalendarDays" },
   { id: "summary",          label: "Сводка смен",          icon: "BarChart2" },
   { id: "busdocs",          label: "Документы ТС",         icon: "FileText" },
   { id: "routes",           label: "Маршруты",             icon: "Map" },
@@ -32,9 +33,9 @@ const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
   { id: "journal_release",  label: "Журнал выпуска ТС",   icon: "ClipboardList", group: "Журналы" },
   { id: "cash",             label: "Наличные",             icon: "Wallet",        group: "Финансы" },
   { id: "cashier",          label: "Касса",                icon: "Landmark",      group: "Финансы" },
-  { id: "cash_restrictions",label: "Ограничения выдачи",  icon: "ShieldAlert",   group: "Финансы" },
   { id: "hr",               label: "Кадры",                icon: "UsersRound" },
   { id: "repair",           label: "Служба ремонта",       icon: "Wrench" },
+  { id: "bdd",              label: "БДД",                  icon: "ShieldAlert" },
   { id: "accounting",       label: "Бухгалтерия",          icon: "Calculator" },
   { id: "company_card",     label: "Карточка предприятия", icon: "Building2",     group: "Администрирование" },
   { id: "users",            label: "Пользователи",         icon: "Shield",        group: "Администрирование" },
@@ -104,7 +105,7 @@ function DispatchApp() {
         </nav>
 
         <main className="flex-1 p-8 overflow-y-auto">
-          {currentTab === "schedule" && <SchedulePage />}
+          {currentTab === "schedule" && <SchedulePage onAccidentCreated={() => setTab("bdd")} />}
           {currentTab === "summary" && <SummaryPage />}
           {currentTab === "busdocs" && <BusDocsPage />}
           {currentTab === "routes" && <RoutesPage />}
@@ -157,15 +158,14 @@ function DispatchApp() {
           )}
 
           {currentTab === "salary" && <SalaryPage />}
-
           {currentTab === "journal_medical" && <MedicalJournalPage />}
           {currentTab === "journal_release" && <VehicleReleasePage />}
           {currentTab === "cash" && <CashPage />}
           {currentTab === "cashier" && <CashierPage />}
-          {currentTab === "cash_restrictions" && <CashierPage />}
-          {currentTab === "repair" && <RepairPage />}
           {currentTab === "hr" && <HRPage />}
-          {currentTab === "accounting" && <AccountingPage />}
+          {currentTab === "repair" && <RepairPage />}
+          {currentTab === "bdd" && <BDDPage />}
+          {currentTab === "accounting" && <AccountingPage showCashRestrictions />}
           {currentTab === "company_card" && <CompanyCardPage />}
           {currentTab === "users" && <UsersPage />}
           {currentTab === "settings" && <SettingsPage />}
@@ -175,7 +175,7 @@ function DispatchApp() {
   );
 }
 
-export default function Dispatch() {
+export default function App() {
   return (
     <AuthProvider>
       <DispatchApp />

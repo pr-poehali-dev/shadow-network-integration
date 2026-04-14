@@ -1032,17 +1032,133 @@ function LeasingTab() {
   );
 }
 
-// ---- Главная страница ----
-export default function AccountingPage() {
-  const [tab, setTab] = useState<AccTab>("overview");
+// ---- Ограничения выдачи наличных (перенесены из отдельного раздела в Бухгалтерию) ----
+function CashRestrictionsTab() {
+  const { user } = useAuth();
+  const [restrictions, setRestrictions] = useState<{id:number;driver_name:string;reason:string;restriction_type:string;limit_amount?:number;is_active:boolean;expires_at?:string;created_at:string}[]>([]);
+  const [drivers, setDrivers] = useState<{id:number;full_name:string}[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<{id:number;driver_id?:number;driver_name:string;reason:string;restriction_type:string;limit_amount:string;expires_at:string}|null>(null);
+  const emptyForm = {id:0,driver_name:"",reason:"",restriction_type:"block",limit_amount:"",expires_at:""};
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
 
-  const tabs: { id: AccTab; label: string; icon: string }[] = [
-    { id: "overview",   label: "Обзор",             icon: "LayoutDashboard" },
-    { id: "bank",       label: "Банк / 1С",         icon: "Building2" },
-    { id: "taxes",      label: "Налоги и ЕНС",      icon: "Receipt" },
-    { id: "creditors",  label: "Кредиторы",         icon: "AlertCircle" },
-    { id: "upcoming",   label: "Предстоящие",        icon: "CalendarClock" },
-    { id: "leasing",    label: "Лизинг",            icon: "Car" },
+  const load = useCallback(async()=>{
+    setLoading(true);
+    const [r,d]=await Promise.all([api.getCashRestrictions(), api.getDrivers()]);
+    setRestrictions(Array.isArray(r)?r:[]);
+    setDrivers(Array.isArray(d)?d:[]);
+    setLoading(false);
+  },[]);
+  useEffect(()=>{load();},[load]);
+
+  async function save(){
+    setSaving(true);
+    const payload={driver_name:form.driver_name,reason:form.reason,restriction_type:form.restriction_type,limit_amount:form.limit_amount||undefined,expires_at:form.expires_at||undefined,is_active:true};
+    if(editing?.id){await api.updateCashRestriction(editing.id,payload);}
+    else{await api.createCashRestriction(payload);}
+    setSaving(false);setShowForm(false);setEditing(null);setForm(emptyForm);load();
+  }
+  async function toggleActive(id:number,is_active:boolean){
+    await api.updateCashRestriction(id,{is_active:!is_active});load();
+  }
+
+  const canEdit=user?.role==="admin"||user?.role==="accountant"||user?.role==="accountant_head";
+
+  return(
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="font-semibold text-neutral-900">Ограничения выдачи наличных</div>
+          <div className="text-xs text-neutral-500 mt-0.5">Привязка к расчёту зарплаты — ограничения учитываются при выдаче наличных водителям</div>
+        </div>
+        {canEdit&&<button onClick={()=>{setEditing(null);setForm(emptyForm);setShowForm(true);}} className="flex items-center gap-1.5 bg-neutral-900 text-white text-xs px-3 py-2 rounded-lg hover:bg-neutral-700 cursor-pointer"><Icon name="Plus" size={13}/>Добавить</button>}
+      </div>
+      {loading?<div className="text-sm text-neutral-400 text-center py-6">Загрузка...</div>:restrictions.length===0?<div className="text-sm text-neutral-400 text-center py-6">Ограничений нет</div>:(
+        <div className="border border-neutral-200 rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-neutral-50 border-b border-neutral-200 text-xs text-neutral-500 uppercase">
+              <tr>
+                <th className="px-4 py-2 text-left">Сотрудник</th>
+                <th className="px-4 py-2 text-left">Причина</th>
+                <th className="px-4 py-2 text-center">Тип</th>
+                <th className="px-4 py-2 text-right">Лимит</th>
+                <th className="px-4 py-2 text-center">Истекает</th>
+                <th className="px-4 py-2 text-center">Статус</th>
+                {canEdit&&<th className="px-4 py-2 w-16"></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {restrictions.map(r=>(
+                <tr key={r.id} className={`border-b border-neutral-100 last:border-0 ${!r.is_active?"opacity-50":""}`}>
+                  <td className="px-4 py-3 font-medium">{r.driver_name||"—"}</td>
+                  <td className="px-4 py-3 text-neutral-600">{r.reason}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${r.restriction_type==="block"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700"}`}>
+                      {r.restriction_type==="block"?"Блокировка":"Лимит"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">{r.limit_amount?fmt(r.limit_amount)+" ₽":"—"}</td>
+                  <td className="px-4 py-3 text-center text-neutral-500">{fmtDate(r.expires_at)}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${r.is_active?"bg-green-100 text-green-700":"bg-neutral-100 text-neutral-500"}`}>
+                      {r.is_active?"Активно":"Снято"}
+                    </span>
+                  </td>
+                  {canEdit&&<td className="px-4 py-3 text-right">
+                    <button onClick={()=>toggleActive(r.id,r.is_active)} className="text-xs text-neutral-400 hover:text-neutral-700 mr-2 cursor-pointer">{r.is_active?"Снять":"Вкл."}</button>
+                  </td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {showForm&&(
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={()=>{setShowForm(false);setEditing(null);}}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b"><span className="font-semibold">Ограничение выдачи</span><button onClick={()=>{setShowForm(false);setEditing(null);}} className="text-neutral-400 cursor-pointer"><Icon name="X" size={16}/></button></div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-neutral-600 mb-1">Водитель</label>
+                <select value={form.driver_name} onChange={e=>setForm(f=>({...f,driver_name:e.target.value}))} className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm bg-white">
+                  <option value="">— Выберите или введите вручную —</option>
+                  {drivers.map(d=><option key={d.id} value={d.full_name}>{d.full_name}</option>)}
+                </select>
+              </div>
+              <div><label className="block text-xs font-medium text-neutral-600 mb-1">Причина *</label><input value={form.reason} onChange={e=>setForm(f=>({...f,reason:e.target.value}))} className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm"/></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-xs font-medium text-neutral-600 mb-1">Тип</label>
+                  <select value={form.restriction_type} onChange={e=>setForm(f=>({...f,restriction_type:e.target.value}))} className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm bg-white">
+                    <option value="block">Полная блокировка</option><option value="limit">Лимит суммы</option>
+                  </select>
+                </div>
+                {form.restriction_type==="limit"&&<div><label className="block text-xs font-medium text-neutral-600 mb-1">Лимит, ₽</label><input type="number" value={form.limit_amount} onChange={e=>setForm(f=>({...f,limit_amount:e.target.value}))} className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm"/></div>}
+              </div>
+              <div><label className="block text-xs font-medium text-neutral-600 mb-1">Действует до</label><input type="date" value={form.expires_at} onChange={e=>setForm(f=>({...f,expires_at:e.target.value}))} className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm"/></div>
+            </div>
+            <div className="flex gap-2 px-5 py-4 border-t"><button onClick={()=>{setShowForm(false);setEditing(null);}} className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg text-neutral-600 cursor-pointer">Отмена</button><button onClick={save} disabled={saving||!form.reason} className="flex-1 py-2 text-sm bg-neutral-900 text-white rounded-lg disabled:opacity-40 cursor-pointer">{saving?"...":"Сохранить"}</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Главная страница ----
+export default function AccountingPage({ showCashRestrictions }: { showCashRestrictions?: boolean }) {
+  type FullAccTab = AccTab | "restrictions";
+  const [tab, setTab] = useState<FullAccTab>("overview");
+
+  const tabs: { id: FullAccTab; label: string; icon: string }[] = [
+    { id: "overview",      label: "Обзор",             icon: "LayoutDashboard" },
+    { id: "bank",          label: "Банк / 1С",         icon: "Building2" },
+    { id: "taxes",         label: "Налоги и ЕНС",      icon: "Receipt" },
+    { id: "creditors",     label: "Кредиторы",         icon: "AlertCircle" },
+    { id: "upcoming",      label: "Предстоящие",        icon: "CalendarClock" },
+    { id: "leasing",       label: "Лизинг",            icon: "Car" },
+    ...(showCashRestrictions ? [{ id: "restrictions" as FullAccTab, label: "Ограничения выдачи", icon: "ShieldAlert" }] : []),
   ];
 
   return (
@@ -1059,12 +1175,13 @@ export default function AccountingPage() {
         ))}
       </div>
 
-      {tab === "overview"  && <OverviewTab />}
-      {tab === "bank"      && <BankTab />}
-      {tab === "taxes"     && <TaxesTab />}
-      {tab === "creditors" && <CreditorsTab />}
-      {tab === "upcoming"  && <UpcomingTab />}
-      {tab === "leasing"   && <LeasingTab />}
+      {tab === "overview"      && <OverviewTab />}
+      {tab === "bank"          && <BankTab />}
+      {tab === "taxes"         && <TaxesTab />}
+      {tab === "creditors"     && <CreditorsTab />}
+      {tab === "upcoming"      && <UpcomingTab />}
+      {tab === "leasing"       && <LeasingTab />}
+      {tab === "restrictions"  && <CashRestrictionsTab />}
     </div>
   );
 }
