@@ -191,6 +191,7 @@ export default function SalaryPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // ведомость — хранятся правки полей по ключу "d-{id}" или "c-{id}"
   const [crewEdit, setCrewEdit] = useState<Record<string, Omit<CrewRecord, "id"|"type"|"full_name"|"is_official"|"total_earned"|"shifts_count">>>({});
+  const [crewSaving, setCrewSaving] = useState<string | null>(null);
 
   // ITR
   const [itrData, setItrData] = useState<ItrEmployee[]>([]);
@@ -212,8 +213,25 @@ export default function SalaryPage() {
 
   const loadDrivers = async () => {
     setDriverLoading(true);
-    const data = await api.getDriverSalary(year, month);
+    const [data, saved] = await Promise.all([
+      api.getDriverSalary(year, month),
+      api.getCrewSalary(year, month),
+    ]);
     setDriverData(data);
+    if (saved && typeof saved === "object" && !saved.error) {
+      const edits: typeof crewEdit = {};
+      for (const [key, rec] of Object.entries(saved as Record<string, Record<string, unknown>>)) {
+        edits[key] = {
+          sick_leave: String(rec.sick_leave ?? ""),
+          advance_cash: String(rec.advance_cash ?? ""),
+          advance_card: String(rec.advance_card ?? ""),
+          salary_card: String(rec.salary_card ?? ""),
+          overtime_sum: String(rec.overtime_sum ?? ""),
+          fines: String(rec.fines ?? ""),
+        };
+      }
+      setCrewEdit(edits);
+    }
     setDriverLoading(false);
   };
 
@@ -270,6 +288,23 @@ export default function SalaryPage() {
     setShowItrForm(false);
     await loadItr();
     setItrFormSaving(false);
+  };
+
+  const saveCrewRecord = async (key: string, personType: "driver" | "conductor", personId: number) => {
+    const ed = getCrewEdit(key);
+    setCrewSaving(key);
+    await api.saveCrewSalary({
+      person_type: personType,
+      person_id: personId,
+      year, month,
+      sick_leave: Number(ed.sick_leave) || 0,
+      advance_cash: Number(ed.advance_cash) || 0,
+      advance_card: Number(ed.advance_card) || 0,
+      salary_card: Number(ed.salary_card) || 0,
+      overtime_sum: Number(ed.overtime_sum) || 0,
+      fines: Number(ed.fines) || 0,
+    });
+    setCrewSaving(null);
   };
 
   const updateItrField = (id: number, field: string, value: string) => {
@@ -395,11 +430,18 @@ export default function SalaryPage() {
                           </div>
                         ))}
                       </div>
-                      <div className="flex items-center gap-4 pt-2 border-t border-neutral-200">
+                      <div className="flex items-center gap-4 pt-2 border-t border-neutral-200 flex-wrap">
                         <span className="text-xs text-neutral-500">Начислено: <span className="font-semibold text-neutral-900">{fmt(p.total_earned)} ₽</span></span>
-                        <span className={`text-sm font-bold ml-auto ${toGet < 0 ? "text-red-600" : "text-neutral-900"}`}>
+                        <span className={`text-sm font-bold ${toGet < 0 ? "text-red-600" : "text-neutral-900"}`}>
                           Итого к выдаче: {fmt(toGet)} ₽
                         </span>
+                        <button
+                          onClick={() => saveCrewRecord(key, keyPrefix === "d" ? "driver" : "conductor", p.id)}
+                          disabled={crewSaving === key}
+                          className="ml-auto bg-neutral-900 text-white px-4 py-1.5 text-xs rounded hover:bg-neutral-700 disabled:opacity-50 cursor-pointer transition-colors flex items-center gap-1.5">
+                          <Icon name={crewSaving === key ? "Loader" : "Save"} size={13} />
+                          {crewSaving === key ? "Сохраняю..." : "Сохранить"}
+                        </button>
                       </div>
                     </div>
                   </div>

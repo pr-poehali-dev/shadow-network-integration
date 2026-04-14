@@ -588,6 +588,51 @@ def handler(event: dict, context) -> dict:
                     conn.commit()
                     return ok(dict(cur.fetchone()))
 
+    # --- CREW SALARY RECORDS: ведомость экипажей ---
+    if resource == "crew_salary":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                year = params.get("year") or body.get("year")
+                month = params.get("month") or body.get("month")
+                if not year or not month:
+                    return err("year and month required")
+                if method == "GET":
+                    cur.execute("""
+                        SELECT * FROM crew_salary_records
+                        WHERE year = %s AND month = %s
+                    """, (int(year), int(month)))
+                    rows = {f"{r['person_type']}-{r['person_id']}": dict(r) for r in cur.fetchall()}
+                    return ok(rows)
+                if method == "PUT":
+                    pt = body.get("person_type")
+                    pid = body.get("person_id")
+                    if not pt or not pid:
+                        return err("person_type and person_id required")
+                    cur.execute("""
+                        INSERT INTO crew_salary_records
+                            (person_type, person_id, year, month, sick_leave, advance_cash, advance_card, salary_card, overtime_sum, fines, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                        ON CONFLICT (person_type, person_id, year, month) DO UPDATE SET
+                            sick_leave = EXCLUDED.sick_leave,
+                            advance_cash = EXCLUDED.advance_cash,
+                            advance_card = EXCLUDED.advance_card,
+                            salary_card = EXCLUDED.salary_card,
+                            overtime_sum = EXCLUDED.overtime_sum,
+                            fines = EXCLUDED.fines,
+                            updated_at = NOW()
+                        RETURNING *
+                    """, (
+                        pt, int(pid), int(year), int(month),
+                        float(body.get("sick_leave") or 0),
+                        float(body.get("advance_cash") or 0),
+                        float(body.get("advance_card") or 0),
+                        float(body.get("salary_card") or 0),
+                        float(body.get("overtime_sum") or 0),
+                        float(body.get("fines") or 0),
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
     # --- DRIVER SALARY: зарплата водителей и кондукторов за период ---
     if resource == "driver_salary":
         with get_conn() as conn:

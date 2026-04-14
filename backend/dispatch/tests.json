@@ -62,6 +62,13 @@
       "path": "/?resource=driver_salary",
       "expectedStatus": 400,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET crew_salary missing params",
+      "method": "GET",
+      "path": "/?resource=crew_salary",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
     }
   ]
 }

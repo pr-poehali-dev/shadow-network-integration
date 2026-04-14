@@ -116,6 +116,10 @@ export const api = {
   // Driver salary
   getDriverSalary: (year: number, month: number) => req("GET", "driver_salary", undefined, { year: String(year), month: String(month) }),
 
+  // Crew salary records (ведомость)
+  getCrewSalary: (year: number, month: number) => req("GET", "crew_salary", undefined, { year: String(year), month: String(month) }),
+  saveCrewSalary: (data: object) => req("PUT", "crew_salary", data),
+
   // Bus documents
   getBusDocs: (busId: number) => docsReq("GET", "docs", undefined, { bus_id: String(busId) }),
   getAlerts: (days?: number) => docsReq("GET", "alerts", undefined, { days: String(days ?? 30) }),
