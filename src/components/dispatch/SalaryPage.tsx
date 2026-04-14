@@ -89,8 +89,7 @@ export default function SalaryPage() {
   };
 
   useEffect(() => {
-    loadDrivers();
-    loadItr();
+    Promise.all([loadDrivers(), loadItr()]);
   }, [year, month]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveItr = async (emp: ItrEmployee) => {
