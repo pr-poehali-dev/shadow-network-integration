@@ -30,15 +30,15 @@ const AuthContext = createContext<AuthCtx>({
 });
 
 const DEFAULT_ROLE_TABS: Record<Role, TabId[]> = {
-  admin: ["schedule", "summary", "sales", "busdocs", "routes", "buses", "terminals", "salary", "journal_medical", "journal_release", "company_card", "cash", "cashier", "cash_restrictions", "repair", "hr", "accounting", "bdd", "settings", "users"],
-  dispatcher: ["schedule", "summary", "sales", "busdocs", "journal_medical", "journal_release", "bdd", "hr"],
+  admin: ["schedule", "sales", "busdocs", "routes", "buses", "terminals", "salary", "journal_medical", "journal_release", "company_card", "cash", "cashier", "cash_restrictions", "repair", "hr", "accounting", "bdd", "settings", "users"],
+  dispatcher: ["schedule", "sales", "busdocs", "journal_medical", "journal_release", "bdd", "hr"],
   mechanic: ["busdocs", "buses", "journal_release", "repair", "bdd"],
   hr: ["hr"],
-  accountant: ["summary", "salary", "cash", "cashier", "cash_restrictions", "accounting"],
+  accountant: ["salary", "cash", "cashier", "cash_restrictions", "accounting"],
   cashier: ["cashier"],
   repair_mechanic: ["repair", "buses", "bdd"],
   hr_head: ["hr"],
-  accountant_head: ["accounting", "salary", "cash", "cashier", "cash_restrictions", "summary"],
+  accountant_head: ["accounting", "salary", "cash", "cashier", "cash_restrictions"],
 };
 
 export const ALL_TABS: { id: TabId; label: string }[] = [

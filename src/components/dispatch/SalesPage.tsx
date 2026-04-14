@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import Icon from "@/components/ui/icon";
 
@@ -50,21 +50,134 @@ export default function SalesPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const allRows = rows;
   const filledRows = rows.filter(r => r.report_id != null);
-  const allRows = rows; // все ТС из расписания
-
-  // Группируем по организации
   const orgs = [...new Set(allRows.map(r => r.organization || ""))].filter(Boolean);
 
   const [y, m, d] = date.split("-");
   const dateLabel = `${d}.${m}.${y}`;
+
+  function handlePrint() {
+    const showOrgHeader = orgs.length > 1;
+    let rowNum = 0;
+
+    const buildTableRows = (filtered: SalesRow[]) =>
+      filtered.map(r => {
+        rowNum++;
+        const crew = [r.driver_name, r.conductor_name].filter(Boolean).join(" / ");
+        const fuelVal = Number(r.fuel_liters_total) || Number(r.fuel_spent) || 0;
+        const cashless = Number(r.cashless_amount) || 0;
+        const hasFilled = r.report_id != null;
+        return `<tr style="background:${rowNum % 2 === 0 ? "#f9fafb" : "#fff"};${!hasFilled ? "opacity:.45;" : ""}">
+          <td class="c">${rowNum}</td>
+          <td class="c bold">${r.route_number}${r.graph_number != null ? ` / ${r.graph_number}` : ""}</td>
+          <td class="c mono">${r.board_number || "—"}</td>
+          <td>${crew || "—"}</td>
+          <td class="c bold indigo">${r.tickets_sold != null ? r.tickets_sold : "—"}</td>
+          <td class="c bold amber">${fuelVal > 0 ? fuelVal.toFixed(1) : "—"}</td>
+          <td class="r mono blue">${cashless > 0 ? fmt(cashless) : "—"}</td>
+          <td class="c">${r.is_overtime ? "✓" : "—"}</td>
+        </tr>`;
+      }).join("");
+
+    let bodyRows = "";
+    if (showOrgHeader) {
+      orgs.forEach(org => {
+        const orgRows = allRows.filter(r => (r.organization || "") === org);
+        const orgTickets = orgRows.reduce((s, r) => s + (Number(r.tickets_sold) || 0), 0);
+        const orgFuel = orgRows.reduce((s, r) => s + (Number(r.fuel_liters_total) || Number(r.fuel_spent) || 0), 0);
+        bodyRows += `<tr style="background:#e5e7eb;border-top:2px solid #9ca3af">
+          <td colspan="8" style="padding:5px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151">
+            ${org}
+            ${orgTickets > 0 ? `<span style="margin-left:12px;color:#4338ca">билеты: ${orgTickets}</span>` : ""}
+            ${orgFuel > 0 ? `<span style="margin-left:12px;color:#b45309">ДТ: ${orgFuel.toFixed(1)} л</span>` : ""}
+          </td>
+        </tr>`;
+        bodyRows += buildTableRows(orgRows);
+      });
+    } else {
+      bodyRows = buildTableRows(allRows);
+    }
+
+    const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"/>
+<title>Продажи ${dateLabel}</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:15px}
+  h1{font-size:15px;margin-bottom:3px}
+  p.sub{font-size:10px;color:#666;margin:0 0 10px}
+  .cards{display:flex;gap:12px;margin-bottom:12px}
+  .card{border:1px solid #e5e7eb;border-radius:4px;padding:7px 14px;min-width:130px}
+  .card .lbl{font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.04em}
+  .card .val{font-size:16px;font-weight:700;margin-top:1px}
+  .indigo{color:#4338ca} .amber{color:#b45309} .blue{color:#1d4ed8}
+  table{border-collapse:collapse;width:100%;margin-top:8px}
+  th{background:#f3f4f6;padding:4px 6px;border:1px solid #d1d5db;font-size:10px;white-space:nowrap;text-align:left}
+  td{padding:3px 6px;border:1px solid #e5e7eb;font-size:10px;white-space:nowrap}
+  .c{text-align:center} .r{text-align:right} .bold{font-weight:700} .mono{font-family:monospace}
+  tfoot tr{background:#1f2937!important;color:#fff}
+  tfoot td{border-color:#374151}
+  .footer{margin-top:20px;font-size:10px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;display:flex;justify-content:space-between}
+  @media print{@page{size:A4 portrait;margin:8mm}}
+</style></head><body>
+<h1>Сводная таблица продаж за ${dateLabel}</h1>
+<p class="sub">Сформировано: ${new Date().toLocaleString("ru-RU")} &nbsp;·&nbsp; ${filledRows.length} из ${allRows.length} ТС с отчётом кассира</p>
+
+<div class="cards">
+  <div class="card"><div class="lbl">Билетов продано</div><div class="val indigo">${totalTickets > 0 ? totalTickets : "—"}</div></div>
+  <div class="card"><div class="lbl">Расход ДТ</div><div class="val amber">${totalFuelLiters > 0 ? totalFuelLiters.toFixed(1) + " л" : "—"}</div></div>
+  <div class="card"><div class="lbl">Безналичные</div><div class="val blue">${totalCashless > 0 ? fmt(totalCashless) + " ₽" : "—"}</div></div>
+</div>
+
+<table>
+<thead><tr>
+  <th class="c" style="width:28px">№</th>
+  <th class="c">Маршрут / Граф.</th>
+  <th class="c">Борт</th>
+  <th>ФИО экипажа</th>
+  <th class="c" style="background:#eef2ff;color:#4338ca">Билеты</th>
+  <th class="c" style="background:#fffbeb;color:#b45309">ДТ, л</th>
+  <th class="r" style="color:#1d4ed8">Безнал, ₽</th>
+  <th class="c">Подраб.</th>
+</tr></thead>
+<tbody>${bodyRows}</tbody>
+<tfoot><tr>
+  <td colspan="4" class="c bold">ИТОГО (${allRows.length} ТС)</td>
+  <td class="c bold mono">${totalTickets > 0 ? totalTickets : "—"}</td>
+  <td class="c bold mono">${totalFuelLiters > 0 ? totalFuelLiters.toFixed(1) : "—"}</td>
+  <td class="r bold mono">${totalCashless > 0 ? fmt(totalCashless) : "—"}</td>
+  <td></td>
+</tr></tfoot>
+</table>
+
+<div class="footer">
+  <span>Диспетчер: _____________________________</span>
+  <span>Дата: ${dateLabel}</span>
+</div>
+</body></html>`;
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 400);
+  }
 
   return (
     <div className="space-y-5">
       {/* Заголовок */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold text-neutral-900">Продажи</h1>
-        <div className="text-xs text-neutral-400">Данные заполняются кассиром</div>
+        <div className="flex items-center gap-2">
+          {allRows.length > 0 && (
+            <button onClick={handlePrint}
+              className="flex items-center gap-2 border border-neutral-300 text-neutral-700 text-sm px-3 py-2 rounded hover:bg-neutral-100 transition-colors cursor-pointer">
+              <Icon name="Printer" size={15} />
+              Распечатать
+            </button>
+          )}
+          <div className="text-xs text-neutral-400">Данные заполняются кассиром</div>
+        </div>
       </div>
 
       {/* Дата */}
@@ -144,7 +257,6 @@ export default function SalesPage() {
               </thead>
               <tbody>
                 {(() => {
-                  // Группируем по организации если есть несколько
                   const showOrgHeader = orgs.length > 1;
                   let rowNum = 0;
                   const result: React.ReactNode[] = [];

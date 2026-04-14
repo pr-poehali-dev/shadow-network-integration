@@ -25,7 +25,6 @@ import Icon from "@/components/ui/icon";
 
 const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
   { id: "schedule",         label: "Наряд",                icon: "CalendarDays" },
-  { id: "summary",          label: "Сводка смен",          icon: "BarChart2" },
   { id: "sales",            label: "Продажи",              icon: "TrendingUp" },
   { id: "busdocs",          label: "Документы ТС",         icon: "FileText" },
   { id: "routes",           label: "Маршруты",             icon: "Map" },
