@@ -285,14 +285,37 @@ export default function SchedulePage() {
     dayTotalFuel: entries.reduce((s, e) => s + Number(e.fuel_spent ?? 0), 0),
   }), [entries, ticketPrice]);
 
+  // Семь дней недели начиная с понедельника текущей недели (относительно выбранной даты)
+  const weekDays = useMemo(() => {
+    const d = new Date(date);
+    const dow = d.getDay(); // 0=вс
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + i);
+      return day.toISOString().slice(0, 10);
+    });
+  }, [date]);
+
+  const DAY_NAMES = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-4 mb-6">
-        <h2 className="text-2xl font-bold text-neutral-900">Расписание на день</h2>
+      <div className="flex flex-wrap items-center gap-4 mb-4">
+        <h2 className="text-2xl font-bold text-neutral-900">Расписание</h2>
         <input
           type="date" value={date} onChange={e => setDate(e.target.value)}
           className="border border-neutral-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-neutral-600"
         />
+        <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() - 7); setDate(d.toISOString().slice(0, 10)); }}
+          className="border border-neutral-300 px-2 py-2 rounded hover:bg-neutral-100 transition-colors cursor-pointer text-neutral-500" title="Предыдущая неделя">
+          <Icon name="ChevronLeft" size={16} />
+        </button>
+        <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() + 7); setDate(d.toISOString().slice(0, 10)); }}
+          className="border border-neutral-300 px-2 py-2 rounded hover:bg-neutral-100 transition-colors cursor-pointer text-neutral-500" title="Следующая неделя">
+          <Icon name="ChevronRight" size={16} />
+        </button>
         {entries.length > 0 && (
           <button onClick={() => handlePrint(date, entries)}
             className="ml-auto flex items-center gap-2 border border-neutral-300 px-4 py-2 text-sm rounded hover:bg-neutral-100 transition-colors cursor-pointer text-neutral-700">
@@ -300,6 +323,28 @@ export default function SchedulePage() {
             Распечатать
           </button>
         )}
+      </div>
+
+      {/* Навигация по дням недели */}
+      <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
+        {weekDays.map((d, i) => {
+          const isActive = d === date;
+          const isToday = d === today();
+          const [, , dd] = d.split("-");
+          return (
+            <button key={d} onClick={() => setDate(d)}
+              className={`flex flex-col items-center px-3 py-2 rounded cursor-pointer transition-colors min-w-[52px] border ${
+                isActive
+                  ? "bg-neutral-900 text-white border-neutral-900"
+                  : isToday
+                  ? "border-neutral-400 text-neutral-700 hover:bg-neutral-100"
+                  : "border-neutral-200 text-neutral-500 hover:bg-neutral-50"
+              }`}>
+              <span className="text-xs font-medium">{DAY_NAMES[i]}</span>
+              <span className={`text-sm font-bold ${isActive ? "text-white" : "text-neutral-900"}`}>{dd}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="bg-neutral-50 border border-neutral-200 rounded p-4 mb-6 flex flex-wrap gap-3 items-end">
