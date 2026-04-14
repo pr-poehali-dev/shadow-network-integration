@@ -1,9 +1,9 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { api } from "./api";
 
-export type Role = "admin" | "dispatcher" | "mechanic" | "hr" | "accountant" | "cashier" | "repair_mechanic" | "hr_head";
+export type Role = "admin" | "dispatcher" | "mechanic" | "hr" | "accountant" | "cashier" | "repair_mechanic" | "hr_head" | "accountant_head";
 
-export type TabId = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "terminals" | "settings" | "users" | "salary" | "mechanics" | "journal_medical" | "journal_release" | "company_card" | "cash" | "cashier" | "cash_restrictions" | "repair" | "hr";
+export type TabId = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "terminals" | "settings" | "users" | "salary" | "mechanics" | "journal_medical" | "journal_release" | "company_card" | "cash" | "cashier" | "cash_restrictions" | "repair" | "hr" | "accounting";
 
 export interface User {
   id: number;
@@ -30,14 +30,15 @@ const AuthContext = createContext<AuthCtx>({
 });
 
 const DEFAULT_ROLE_TABS: Record<Role, TabId[]> = {
-  admin: ["schedule", "summary", "busdocs", "routes", "buses", "terminals", "salary", "mechanics", "journal_medical", "journal_release", "company_card", "cash", "cashier", "cash_restrictions", "repair", "hr", "settings", "users"],
+  admin: ["schedule", "summary", "busdocs", "routes", "buses", "terminals", "salary", "mechanics", "journal_medical", "journal_release", "company_card", "cash", "cashier", "cash_restrictions", "repair", "hr", "accounting", "settings", "users"],
   dispatcher: ["schedule", "summary", "busdocs", "journal_medical", "journal_release", "hr"],
   mechanic: ["busdocs", "buses", "mechanics", "journal_release"],
   hr: ["hr"],
-  accountant: ["summary", "salary", "cash", "cashier", "cash_restrictions"],
+  accountant: ["summary", "salary", "cash", "cashier", "cash_restrictions", "accounting"],
   cashier: ["cashier"],
   repair_mechanic: ["repair", "buses"],
   hr_head: ["hr"],
+  accountant_head: ["accounting", "salary", "cash", "cashier", "cash_restrictions", "summary"],
 };
 
 export const ALL_TABS: { id: TabId; label: string }[] = [
@@ -57,6 +58,7 @@ export const ALL_TABS: { id: TabId; label: string }[] = [
   { id: "cash_restrictions", label: "Ограничения выдачи" },
   { id: "repair", label: "Служба ремонта" },
   { id: "hr", label: "Кадры" },
+  { id: "accounting", label: "Бухгалтерия" },
   { id: "settings", label: "Настройки" },
   { id: "users", label: "Пользователи" },
 ];
@@ -126,4 +128,5 @@ export const ROLE_LABELS: Record<Role, string> = {
   cashier: "Кассир",
   repair_mechanic: "Механик по ремонту",
   hr_head: "Начальник отдела кадров",
+  accountant_head: "Главный бухгалтер",
 };

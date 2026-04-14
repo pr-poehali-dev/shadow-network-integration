@@ -1753,4 +1753,447 @@ def handler(event: dict, context) -> dict:
                     conn.commit()
                     return ok({"deleted": True})
 
+    # --- BANK_TRANSACTIONS: банковские транзакции / импорт из 1С ---
+    if resource == "bank_transactions":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    date_from = params.get("date_from")
+                    date_to = params.get("date_to")
+                    category = params.get("category")
+                    direction = params.get("direction")
+                    counterparty = params.get("counterparty")
+                    org = params.get("organization")
+                    conditions, vals = [], []
+                    if date_from: conditions.append("transaction_date >= %s"); vals.append(date_from)
+                    if date_to: conditions.append("transaction_date <= %s"); vals.append(date_to)
+                    if category: conditions.append("category = %s"); vals.append(category)
+                    if direction: conditions.append("direction = %s"); vals.append(direction)
+                    if counterparty: conditions.append("counterparty ILIKE %s"); vals.append(f"%{counterparty}%")
+                    if org: conditions.append("organization = %s"); vals.append(org)
+                    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+                    cur.execute(f"""
+                        SELECT * FROM bank_transactions {where}
+                        ORDER BY transaction_date DESC, created_at DESC
+                    """, vals)
+                    rows = list(cur.fetchall())
+                    cur.execute(f"""
+                        SELECT
+                            COALESCE(SUM(amount) FILTER (WHERE direction='credit'), 0) as total_credit,
+                            COALESCE(SUM(amount) FILTER (WHERE direction='debit'), 0) as total_debit
+                        FROM bank_transactions {where}
+                    """, vals)
+                    totals = dict(cur.fetchone())
+                    # группировка по поставщикам
+                    cur.execute(f"""
+                        SELECT counterparty, category,
+                            SUM(amount) FILTER (WHERE direction='debit') as debit_sum,
+                            COUNT(*) FILTER (WHERE direction='debit') as debit_count
+                        FROM bank_transactions {where}
+                        WHERE counterparty IS NOT NULL
+                        GROUP BY counterparty, category
+                        ORDER BY debit_sum DESC NULLS LAST
+                        LIMIT 50
+                    """, vals)
+                    by_counterparty = list(cur.fetchall())
+                    return ok({"items": rows, "totals": totals, "by_counterparty": by_counterparty})
+
+                if method == "POST":
+                    if not body.get("amount") or not body.get("transaction_date"):
+                        return err("amount and transaction_date required")
+                    cur.execute("""
+                        INSERT INTO bank_transactions
+                            (transaction_date, direction, amount, counterparty, counterparty_inn,
+                             category, purpose, account_number, bank_name, document_number,
+                             organization, source, import_batch, notes, created_by)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                    """, (
+                        body.get("transaction_date"), body.get("direction","debit"),
+                        float(body.get("amount")),
+                        body.get("counterparty") or None, body.get("counterparty_inn") or None,
+                        body.get("category","other"), body.get("purpose") or None,
+                        body.get("account_number") or None, body.get("bank_name") or None,
+                        body.get("document_number") or None, body.get("organization") or None,
+                        body.get("source","manual"), body.get("import_batch") or None,
+                        body.get("notes") or None, body.get("created_by") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    if not item_id: return err("id required")
+                    cur.execute("""
+                        UPDATE bank_transactions SET
+                            transaction_date=%s, direction=%s, amount=%s, counterparty=%s, counterparty_inn=%s,
+                            category=%s, purpose=%s, account_number=%s, bank_name=%s, document_number=%s,
+                            organization=%s, notes=%s
+                        WHERE id=%s RETURNING *
+                    """, (
+                        body.get("transaction_date"), body.get("direction","debit"),
+                        float(body.get("amount")),
+                        body.get("counterparty") or None, body.get("counterparty_inn") or None,
+                        body.get("category","other"), body.get("purpose") or None,
+                        body.get("account_number") or None, body.get("bank_name") or None,
+                        body.get("document_number") or None, body.get("organization") or None,
+                        body.get("notes") or None, item_id,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "DELETE":
+                    if not item_id: return err("id required")
+                    cur.execute("DELETE FROM bank_transactions WHERE id=%s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- TAX_PAYMENTS: налоговые платежи и ЕНС ---
+    if resource == "tax_payments":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    year = params.get("year")
+                    status_f = params.get("status")
+                    org = params.get("organization")
+                    conditions, vals = [], []
+                    if year: conditions.append("period_year = %s"); vals.append(int(year))
+                    if status_f: conditions.append("status = %s"); vals.append(status_f)
+                    if org: conditions.append("organization = %s"); vals.append(org)
+                    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+                    cur.execute(f"SELECT * FROM tax_payments {where} ORDER BY due_date DESC", vals)
+                    rows = list(cur.fetchall())
+                    cur.execute(f"""
+                        SELECT
+                            COALESCE(SUM(accrued_amount),0) as total_accrued,
+                            COALESCE(SUM(paid_amount),0) as total_paid,
+                            COALESCE(SUM(accrued_amount - COALESCE(paid_amount,0)),0) as total_debt
+                        FROM tax_payments {where}
+                    """, vals)
+                    totals = dict(cur.fetchone())
+                    # ближайшие к оплате
+                    cur.execute("""
+                        SELECT * FROM tax_payments
+                        WHERE status IN ('pending','partial','overdue')
+                          AND due_date >= CURRENT_DATE - INTERVAL '30 days'
+                        ORDER BY due_date LIMIT 10
+                    """)
+                    upcoming = list(cur.fetchall())
+                    return ok({"items": rows, "totals": totals, "upcoming": upcoming})
+
+                if method == "POST":
+                    if not body.get("tax_type") or not body.get("due_date"):
+                        return err("tax_type and due_date required")
+                    cur.execute("""
+                        INSERT INTO tax_payments
+                            (payment_date, due_date, tax_type, period_year, period_month,
+                             accrued_amount, paid_amount, status, ens_balance, organization, notes, created_by)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                    """, (
+                        body.get("payment_date") or None, body.get("due_date"),
+                        body.get("tax_type"),
+                        int(body.get("period_year")) if body.get("period_year") else None,
+                        int(body.get("period_month")) if body.get("period_month") else None,
+                        float(body.get("accrued_amount") or 0),
+                        float(body.get("paid_amount") or 0),
+                        body.get("status","pending"),
+                        float(body.get("ens_balance")) if body.get("ens_balance") else None,
+                        body.get("organization") or None, body.get("notes") or None,
+                        body.get("created_by") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    if not item_id: return err("id required")
+                    cur.execute("""
+                        UPDATE tax_payments SET
+                            payment_date=%s, due_date=%s, tax_type=%s, period_year=%s, period_month=%s,
+                            accrued_amount=%s, paid_amount=%s, status=%s, ens_balance=%s,
+                            organization=%s, notes=%s, updated_at=NOW()
+                        WHERE id=%s RETURNING *
+                    """, (
+                        body.get("payment_date") or None, body.get("due_date"),
+                        body.get("tax_type"),
+                        int(body.get("period_year")) if body.get("period_year") else None,
+                        int(body.get("period_month")) if body.get("period_month") else None,
+                        float(body.get("accrued_amount") or 0),
+                        float(body.get("paid_amount") or 0),
+                        body.get("status","pending"),
+                        float(body.get("ens_balance")) if body.get("ens_balance") else None,
+                        body.get("organization") or None, body.get("notes") or None,
+                        item_id,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "DELETE":
+                    if not item_id: return err("id required")
+                    cur.execute("DELETE FROM tax_payments WHERE id=%s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- CREDITORS: кредиторская задолженность ---
+    if resource == "creditors":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    show_inactive = params.get("show_inactive") == "1"
+                    org = params.get("organization")
+                    conditions, vals = [], []
+                    if not show_inactive: conditions.append("is_active = TRUE")
+                    if org: conditions.append("organization = %s"); vals.append(org)
+                    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+                    cur.execute(f"""
+                        SELECT * FROM creditors {where}
+                        ORDER BY overdue_amount DESC, next_payment_date NULLS LAST
+                    """, vals)
+                    rows = list(cur.fetchall())
+                    cur.execute(f"""
+                        SELECT
+                            COALESCE(SUM(current_debt),0) as total_debt,
+                            COALESCE(SUM(overdue_amount),0) as total_overdue
+                        FROM creditors {where}
+                    """, vals)
+                    totals = dict(cur.fetchone())
+                    return ok({"items": rows, "totals": totals})
+
+                if method == "POST":
+                    if not body.get("counterparty") or not body.get("current_debt"):
+                        return err("counterparty and current_debt required")
+                    cur.execute("""
+                        INSERT INTO creditors
+                            (counterparty, counterparty_inn, debt_type, contract_number, contract_date,
+                             original_amount, current_debt, overdue_amount, last_payment_date,
+                             next_payment_date, next_payment_amount, organization, is_active, notes, created_by)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                    """, (
+                        body.get("counterparty"),
+                        body.get("counterparty_inn") or None,
+                        body.get("debt_type","supplier"),
+                        body.get("contract_number") or None,
+                        body.get("contract_date") or None,
+                        float(body.get("original_amount")) if body.get("original_amount") else None,
+                        float(body.get("current_debt")),
+                        float(body.get("overdue_amount") or 0),
+                        body.get("last_payment_date") or None,
+                        body.get("next_payment_date") or None,
+                        float(body.get("next_payment_amount")) if body.get("next_payment_amount") else None,
+                        body.get("organization") or None,
+                        bool(body.get("is_active", True)),
+                        body.get("notes") or None, body.get("created_by") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    if not item_id: return err("id required")
+                    cur.execute("""
+                        UPDATE creditors SET
+                            counterparty=%s, counterparty_inn=%s, debt_type=%s, contract_number=%s, contract_date=%s,
+                            original_amount=%s, current_debt=%s, overdue_amount=%s, last_payment_date=%s,
+                            next_payment_date=%s, next_payment_amount=%s, organization=%s, is_active=%s,
+                            notes=%s, updated_at=NOW()
+                        WHERE id=%s RETURNING *
+                    """, (
+                        body.get("counterparty"),
+                        body.get("counterparty_inn") or None,
+                        body.get("debt_type","supplier"),
+                        body.get("contract_number") or None,
+                        body.get("contract_date") or None,
+                        float(body.get("original_amount")) if body.get("original_amount") else None,
+                        float(body.get("current_debt")),
+                        float(body.get("overdue_amount") or 0),
+                        body.get("last_payment_date") or None,
+                        body.get("next_payment_date") or None,
+                        float(body.get("next_payment_amount")) if body.get("next_payment_amount") else None,
+                        body.get("organization") or None,
+                        bool(body.get("is_active", True)),
+                        body.get("notes") or None, item_id,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "DELETE":
+                    if not item_id: return err("id required")
+                    cur.execute("UPDATE creditors SET is_active=FALSE, updated_at=NOW() WHERE id=%s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- UPCOMING_PAYMENTS: предстоящие платежи ---
+    if resource == "upcoming_payments":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    days_ahead = int(params.get("days_ahead", 30))
+                    status_f = params.get("status")
+                    org = params.get("organization")
+                    conditions = [f"due_date <= CURRENT_DATE + INTERVAL '{days_ahead} days'"]
+                    vals = []
+                    if status_f: conditions.append("status = %s"); vals.append(status_f)
+                    else: conditions.append("status IN ('planned','partial')")
+                    if org: conditions.append("organization = %s"); vals.append(org)
+                    where = "WHERE " + " AND ".join(conditions)
+                    cur.execute(f"""
+                        SELECT * FROM upcoming_payments {where}
+                        ORDER BY due_date, due_date - CURRENT_DATE
+                    """, vals)
+                    rows = list(cur.fetchall())
+                    # просроченные
+                    cur.execute("""
+                        SELECT * FROM upcoming_payments
+                        WHERE status IN ('planned','partial') AND due_date < CURRENT_DATE
+                        ORDER BY due_date
+                    """)
+                    overdue = list(cur.fetchall())
+                    cur.execute(f"""
+                        SELECT COALESCE(SUM(planned_amount - COALESCE(paid_amount,0)),0) as total_planned
+                        FROM upcoming_payments {where}
+                    """, vals)
+                    total_planned = cur.fetchone()["total_planned"]
+                    return ok({"items": rows, "overdue": overdue, "total_planned": total_planned})
+
+                if method == "POST":
+                    if not body.get("description") or not body.get("planned_amount") or not body.get("due_date"):
+                        return err("description, planned_amount, due_date required")
+                    cur.execute("""
+                        INSERT INTO upcoming_payments
+                            (due_date, payment_type, counterparty, description, planned_amount,
+                             paid_amount, status, is_recurring, recur_day, organization,
+                             notify_days_before, created_by)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                    """, (
+                        body.get("due_date"), body.get("payment_type","other"),
+                        body.get("counterparty") or None, body.get("description"),
+                        float(body.get("planned_amount")),
+                        float(body.get("paid_amount") or 0),
+                        body.get("status","planned"),
+                        bool(body.get("is_recurring", False)),
+                        int(body.get("recur_day")) if body.get("recur_day") else None,
+                        body.get("organization") or None,
+                        int(body.get("notify_days_before") or 5),
+                        body.get("created_by") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    if not item_id: return err("id required")
+                    cur.execute("""
+                        UPDATE upcoming_payments SET
+                            due_date=%s, payment_type=%s, counterparty=%s, description=%s,
+                            planned_amount=%s, paid_amount=%s, status=%s, is_recurring=%s,
+                            recur_day=%s, organization=%s, notify_days_before=%s, updated_at=NOW()
+                        WHERE id=%s RETURNING *
+                    """, (
+                        body.get("due_date"), body.get("payment_type","other"),
+                        body.get("counterparty") or None, body.get("description"),
+                        float(body.get("planned_amount")),
+                        float(body.get("paid_amount") or 0),
+                        body.get("status","planned"),
+                        bool(body.get("is_recurring", False)),
+                        int(body.get("recur_day")) if body.get("recur_day") else None,
+                        body.get("organization") or None,
+                        int(body.get("notify_days_before") or 5),
+                        item_id,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "DELETE":
+                    if not item_id: return err("id required")
+                    cur.execute("UPDATE upcoming_payments SET status='cancelled', updated_at=NOW() WHERE id=%s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- LEASING_CONTRACTS: лизинговые договора ---
+    if resource == "leasing_contracts":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    org = params.get("organization")
+                    show_inactive = params.get("show_inactive") == "1"
+                    conditions, vals = [], []
+                    if not show_inactive: conditions.append("is_active = TRUE")
+                    if org: conditions.append("organization = %s"); vals.append(org)
+                    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+                    cur.execute(f"""
+                        SELECT *,
+                            (payments_total - payments_made) as payments_remaining
+                        FROM leasing_contracts {where}
+                        ORDER BY end_date NULLS LAST
+                    """, vals)
+                    rows = list(cur.fetchall())
+                    cur.execute(f"""
+                        SELECT
+                            COALESCE(SUM(remaining_debt),0) as total_remaining,
+                            COALESCE(SUM(monthly_payment),0) as total_monthly
+                        FROM leasing_contracts {where}
+                    """, vals)
+                    totals = dict(cur.fetchone())
+                    return ok({"items": rows, "totals": totals})
+
+                if method == "POST":
+                    if not body.get("lessor"): return err("lessor required")
+                    cur.execute("""
+                        INSERT INTO leasing_contracts
+                            (lessor, contract_number, contract_date, object_description, bus_id,
+                             total_amount, monthly_payment, payment_day, start_date, end_date,
+                             payments_total, payments_made, remaining_debt, organization, is_active, notes, created_by)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                    """, (
+                        body.get("lessor"),
+                        body.get("contract_number") or None,
+                        body.get("contract_date") or None,
+                        body.get("object_description") or None,
+                        int(body.get("bus_id")) if body.get("bus_id") else None,
+                        float(body.get("total_amount")) if body.get("total_amount") else None,
+                        float(body.get("monthly_payment")) if body.get("monthly_payment") else None,
+                        int(body.get("payment_day")) if body.get("payment_day") else None,
+                        body.get("start_date") or None,
+                        body.get("end_date") or None,
+                        int(body.get("payments_total")) if body.get("payments_total") else None,
+                        int(body.get("payments_made") or 0),
+                        float(body.get("remaining_debt")) if body.get("remaining_debt") else None,
+                        body.get("organization") or None,
+                        bool(body.get("is_active", True)),
+                        body.get("notes") or None, body.get("created_by") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    if not item_id: return err("id required")
+                    cur.execute("""
+                        UPDATE leasing_contracts SET
+                            lessor=%s, contract_number=%s, contract_date=%s, object_description=%s, bus_id=%s,
+                            total_amount=%s, monthly_payment=%s, payment_day=%s, start_date=%s, end_date=%s,
+                            payments_total=%s, payments_made=%s, remaining_debt=%s,
+                            organization=%s, is_active=%s, notes=%s, updated_at=NOW()
+                        WHERE id=%s RETURNING *
+                    """, (
+                        body.get("lessor"),
+                        body.get("contract_number") or None,
+                        body.get("contract_date") or None,
+                        body.get("object_description") or None,
+                        int(body.get("bus_id")) if body.get("bus_id") else None,
+                        float(body.get("total_amount")) if body.get("total_amount") else None,
+                        float(body.get("monthly_payment")) if body.get("monthly_payment") else None,
+                        int(body.get("payment_day")) if body.get("payment_day") else None,
+                        body.get("start_date") or None,
+                        body.get("end_date") or None,
+                        int(body.get("payments_total")) if body.get("payments_total") else None,
+                        int(body.get("payments_made") or 0),
+                        float(body.get("remaining_debt")) if body.get("remaining_debt") else None,
+                        body.get("organization") or None,
+                        bool(body.get("is_active", True)),
+                        body.get("notes") or None, item_id,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "DELETE":
+                    if not item_id: return err("id required")
+                    cur.execute("UPDATE leasing_contracts SET is_active=FALSE, updated_at=NOW() WHERE id=%s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
     return err("Not found", 404)

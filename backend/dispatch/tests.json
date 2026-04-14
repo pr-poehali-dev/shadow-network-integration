@@ -153,6 +153,41 @@
       "path": "/?resource=staff",
       "expectedStatus": 200,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET bank_transactions",
+      "method": "GET",
+      "path": "/?resource=bank_transactions",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET tax_payments",
+      "method": "GET",
+      "path": "/?resource=tax_payments",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET creditors",
+      "method": "GET",
+      "path": "/?resource=creditors",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET upcoming_payments",
+      "method": "GET",
+      "path": "/?resource=upcoming_payments",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET leasing_contracts",
+      "method": "GET",
+      "path": "/?resource=leasing_contracts",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
     }
   ]
 }

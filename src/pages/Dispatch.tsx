@@ -17,6 +17,7 @@ import CashPage from "@/components/dispatch/CashPage";
 import CashierPage from "@/components/dispatch/CashierPage";
 import RepairPage from "@/components/dispatch/RepairPage";
 import HRPage from "@/components/dispatch/HRPage";
+import AccountingPage from "@/components/dispatch/AccountingPage";
 import Icon from "@/components/ui/icon";
 
 const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
@@ -35,6 +36,7 @@ const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
   { id: "cash_restrictions",label: "Ограничения выдачи",  icon: "ShieldAlert",   group: "Финансы" },
   { id: "hr",               label: "Кадры",                icon: "UsersRound" },
   { id: "repair",           label: "Служба ремонта",       icon: "Wrench" },
+  { id: "accounting",       label: "Бухгалтерия",          icon: "Calculator" },
   { id: "company_card",     label: "Карточка предприятия", icon: "Building2",     group: "Администрирование" },
   { id: "users",            label: "Пользователи",         icon: "Shield",        group: "Администрирование" },
   { id: "settings",         label: "Настройки",            icon: "Settings",      group: "Администрирование" },
@@ -184,6 +186,7 @@ function DispatchApp() {
           {currentTab === "cash_restrictions" && <CashierPage />}
           {currentTab === "repair" && <RepairPage />}
           {currentTab === "hr" && <HRPage />}
+          {currentTab === "accounting" && <AccountingPage />}
           {currentTab === "company_card" && <CompanyCardPage />}
           {currentTab === "users" && <UsersPage />}
           {currentTab === "settings" && <SettingsPage />}

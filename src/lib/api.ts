@@ -193,6 +193,32 @@ export const api = {
   updateCash: (id: number, data: object) => req("PUT", "cash", data, { id: String(id) }),
   deleteCash: (id: number) => req("DELETE", "cash", undefined, { id: String(id) }),
 
+  // Accounting
+  getBankTransactions: (params?: Record<string,string>) => req("GET", "bank_transactions", undefined, params),
+  createBankTransaction: (data: object) => req("POST", "bank_transactions", data),
+  updateBankTransaction: (id: number, data: object) => req("PUT", "bank_transactions", data, { id: String(id) }),
+  deleteBankTransaction: (id: number) => req("DELETE", "bank_transactions", undefined, { id: String(id) }),
+
+  getTaxPayments: (params?: Record<string,string>) => req("GET", "tax_payments", undefined, params),
+  createTaxPayment: (data: object) => req("POST", "tax_payments", data),
+  updateTaxPayment: (id: number, data: object) => req("PUT", "tax_payments", data, { id: String(id) }),
+  deleteTaxPayment: (id: number) => req("DELETE", "tax_payments", undefined, { id: String(id) }),
+
+  getCreditors: (params?: Record<string,string>) => req("GET", "creditors", undefined, params),
+  createCreditor: (data: object) => req("POST", "creditors", data),
+  updateCreditor: (id: number, data: object) => req("PUT", "creditors", data, { id: String(id) }),
+  deleteCreditor: (id: number) => req("DELETE", "creditors", undefined, { id: String(id) }),
+
+  getUpcomingPayments: (params?: Record<string,string>) => req("GET", "upcoming_payments", undefined, params),
+  createUpcomingPayment: (data: object) => req("POST", "upcoming_payments", data),
+  updateUpcomingPayment: (id: number, data: object) => req("PUT", "upcoming_payments", data, { id: String(id) }),
+  deleteUpcomingPayment: (id: number) => req("DELETE", "upcoming_payments", undefined, { id: String(id) }),
+
+  getLeasingContracts: (params?: Record<string,string>) => req("GET", "leasing_contracts", undefined, params),
+  createLeasingContract: (data: object) => req("POST", "leasing_contracts", data),
+  updateLeasingContract: (id: number, data: object) => req("PUT", "leasing_contracts", data, { id: String(id) }),
+  deleteLeasingContract: (id: number) => req("DELETE", "leasing_contracts", undefined, { id: String(id) }),
+
   // Staff (HR)
   getStaff: (params?: Record<string,string>) => req("GET", "staff", undefined, params),
   createStaff: (data: object) => req("POST", "staff", data),

@@ -141,7 +141,7 @@ def handler(event: dict, context) -> dict:
                     role = body.get("role", "dispatcher")
                     if not username or not password or not full_name:
                         return err("Заполните все поля")
-                    valid_roles = ["admin", "dispatcher", "mechanic", "hr", "accountant", "cashier", "repair_mechanic", "hr_head"]
+                    valid_roles = ["admin", "dispatcher", "mechanic", "hr", "accountant", "cashier", "repair_mechanic", "hr_head", "accountant_head"]
                     if role not in valid_roles:
                         return err("Недопустимая роль")
                     cur.execute("SELECT id FROM users WHERE username = %s", (username,))
