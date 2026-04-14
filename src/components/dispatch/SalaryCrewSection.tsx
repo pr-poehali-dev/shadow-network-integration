@@ -102,13 +102,14 @@ export default function SalaryCrewSection({
                           <th className="text-right">База</th>
                           {keyPrefix === "d" && <th className="text-right">Топливо</th>}
                           <th className="text-left pl-2">%</th>
+                          <th className="text-right">Обед</th>
                           <th className="text-right">Заработал</th>
                           <th className="text-center">Подраб.</th>
                         </tr>
                       </thead>
                       <tbody>
                         {shifts.map((s: DriverSalaryShift | ConductorShift, i: number) => {
-                          const ds = s as DriverSalaryShift & { tickets?: number; base?: number; formula?: string };
+                          const ds = s as DriverSalaryShift & { tickets?: number; base?: number; formula?: string; lunch?: number };
                           return (
                             <tr key={i} className={`border-t border-neutral-100 ${s.is_overtime ? "bg-amber-50" : ""}`}>
                               <td className="py-1.5 text-neutral-600">{s.date.split("-").reverse().join(".")}</td>
@@ -123,6 +124,9 @@ export default function SalaryCrewSection({
                               <td className="pl-2 text-neutral-400 whitespace-nowrap">
                                 {ds.formula ?? "—"}
                               </td>
+                              <td className="text-right text-orange-500">
+                                {ds.lunch != null && ds.lunch > 0 ? `−${fmt(ds.lunch)} ₽` : <span className="text-neutral-300">—</span>}
+                              </td>
                               <td className="text-right font-semibold text-neutral-900">{fmt(s.earned)} ₽</td>
                               <td className="text-center">{s.is_overtime ? <span className="text-amber-600">Да</span> : <span className="text-neutral-300">—</span>}</td>
                             </tr>
@@ -131,7 +135,7 @@ export default function SalaryCrewSection({
                       </tbody>
                       <tfoot>
                         <tr className="border-t-2 border-neutral-200 font-bold text-neutral-900">
-                          <td colSpan={keyPrefix === "d" ? 5 : 4} className="py-1.5">Начислено за смены:</td>
+                          <td colSpan={keyPrefix === "d" ? 6 : 5} className="py-1.5">Начислено за смены:</td>
                           <td colSpan={2} className="text-right">{fmt(p.total_earned)} ₽</td>
                           <td></td>
                         </tr>

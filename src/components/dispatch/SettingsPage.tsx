@@ -127,6 +127,8 @@ export default function SettingsPage() {
     driver_pct_with_conductor: "22",
     conductor_pct: "15",
     route6_fixed_salary: "7000",
+    lunch_no_conductor: "150",
+    lunch_with_conductor: "300",
   });
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -161,6 +163,8 @@ export default function SettingsPage() {
         driver_pct_with_conductor: s.driver_pct_with_conductor ?? "22",
         conductor_pct: s.conductor_pct ?? "15",
         route6_fixed_salary: s.route6_fixed_salary ?? "7000",
+        lunch_no_conductor: s.lunch_no_conductor ?? "150",
+        lunch_with_conductor: s.lunch_with_conductor ?? "300",
       });
       setLoading(false);
     });
@@ -345,18 +349,84 @@ export default function SettingsPage() {
                 const tickets = 500;
                 const fuel = 0;
                 const base = tickets * tp - fuel;
-                const dNoC = Math.round(base * (Number(values.driver_pct_no_conductor) || 37) / 100 - 150);
-                const dWithC = Math.round(base * (Number(values.driver_pct_with_conductor) || 22) / 100 - 150);
-                const cond = Math.round(base * (Number(values.conductor_pct) || 15) / 100);
+                const lNoC = Number(values.lunch_no_conductor) || 150;
+                const lWithC = Number(values.lunch_with_conductor) || 300;
+                const dNoC = Math.round(base * (Number(values.driver_pct_no_conductor) || 37) / 100 - lNoC);
+                const dWithC = Math.round(base * (Number(values.driver_pct_with_conductor) || 22) / 100 - lWithC);
+                const cond = Math.round(base * (Number(values.conductor_pct) || 15) / 100 - lWithC);
                 return (
                   <>
                     <div>База: {tickets} × {tp} ₽ = {base.toLocaleString("ru-RU")} ₽</div>
-                    <div>Водитель без кондуктора: {base.toLocaleString()} × {values.driver_pct_no_conductor || 37}% − 150 = <b>{dNoC.toLocaleString("ru-RU")} ₽</b></div>
-                    <div>Водитель с кондуктором: {base.toLocaleString()} × {values.driver_pct_with_conductor || 22}% − 150 = <b>{dWithC.toLocaleString("ru-RU")} ₽</b></div>
-                    <div>Кондуктор: {base.toLocaleString()} × {values.conductor_pct || 15}% = <b>{cond.toLocaleString("ru-RU")} ₽</b></div>
+                    <div>Водитель без кондуктора: {base.toLocaleString()} × {values.driver_pct_no_conductor || 37}% − обед {lNoC} ₽ = <b>{dNoC.toLocaleString("ru-RU")} ₽</b></div>
+                    <div>Водитель с кондуктором: {base.toLocaleString()} × {values.driver_pct_with_conductor || 22}% − обед {lWithC} ₽ = <b>{dWithC.toLocaleString("ru-RU")} ₽</b></div>
+                    <div>Кондуктор: {base.toLocaleString()} × {values.conductor_pct || 15}% − обед {lWithC} ₽ = <b>{cond.toLocaleString("ru-RU")} ₽</b></div>
                   </>
                 );
               })()}
+            </div>
+          </div>
+        </div>
+
+        {/* Обеды */}
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Icon name="UtensilsCrossed" size={16} className="text-neutral-500" />
+            <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Стоимость обедов</span>
+          </div>
+          <p className="text-xs text-neutral-400 mb-3">
+            Вычитается из начисленной зарплаты каждого члена экипажа за каждую смену.
+          </p>
+          <div className="flex flex-col gap-4">
+            <div className="border border-neutral-200 rounded p-5">
+              <h3 className="font-semibold text-neutral-900 mb-1">Водитель без кондуктора</h3>
+              <p className="text-sm text-neutral-500 mb-4">Сумма обеда для водителя, работающего в одиночку</p>
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-neutral-500 block mb-1">Стоимость обеда, ₽</label>
+                  <input
+                    type="number" step="10" min="0"
+                    value={values.lunch_no_conductor}
+                    onChange={e => setVal("lunch_no_conductor", e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") handleSave("lunch_no_conductor"); }}
+                    placeholder="150"
+                    className="border border-neutral-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-neutral-600"
+                  />
+                </div>
+                <button onClick={() => handleSave("lunch_no_conductor")}
+                  disabled={saving === "lunch_no_conductor" || !values.lunch_no_conductor || Number(values.lunch_no_conductor) < 0}
+                  className="bg-neutral-900 text-white px-5 py-2 text-sm rounded hover:bg-neutral-700 transition-colors disabled:opacity-50 cursor-pointer">
+                  {saving === "lunch_no_conductor" ? "Сохраняю..." : "Сохранить"}
+                </button>
+              </div>
+              {saved === "lunch_no_conductor" && (
+                <div className="mt-2 text-sm text-green-600 flex items-center gap-1.5"><Icon name="Check" size={14} /> Сохранено</div>
+              )}
+            </div>
+
+            <div className="border border-neutral-200 rounded p-5">
+              <h3 className="font-semibold text-neutral-900 mb-1">Экипаж с кондуктором</h3>
+              <p className="text-sm text-neutral-500 mb-4">Сумма обеда для водителя и кондуктора (каждый вычитается отдельно)</p>
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-neutral-500 block mb-1">Стоимость обеда на человека, ₽</label>
+                  <input
+                    type="number" step="10" min="0"
+                    value={values.lunch_with_conductor}
+                    onChange={e => setVal("lunch_with_conductor", e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") handleSave("lunch_with_conductor"); }}
+                    placeholder="300"
+                    className="border border-neutral-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-neutral-600"
+                  />
+                </div>
+                <button onClick={() => handleSave("lunch_with_conductor")}
+                  disabled={saving === "lunch_with_conductor" || !values.lunch_with_conductor || Number(values.lunch_with_conductor) < 0}
+                  className="bg-neutral-900 text-white px-5 py-2 text-sm rounded hover:bg-neutral-700 transition-colors disabled:opacity-50 cursor-pointer">
+                  {saving === "lunch_with_conductor" ? "Сохраняю..." : "Сохранить"}
+                </button>
+              </div>
+              {saved === "lunch_with_conductor" && (
+                <div className="mt-2 text-sm text-green-600 flex items-center gap-1.5"><Icon name="Check" size={14} /> Сохранено</div>
+              )}
             </div>
           </div>
         </div>

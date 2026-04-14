@@ -10,6 +10,7 @@ export interface DriverSalaryShift {
   tickets?: number | null;
   base?: number;
   formula?: string;
+  lunch?: number;
 }
 
 export interface DriverSalary {
@@ -29,6 +30,7 @@ export interface ConductorShift {
   tickets?: number | null;
   base?: number;
   formula?: string;
+  lunch?: number;
 }
 
 export interface ConductorSalary {
