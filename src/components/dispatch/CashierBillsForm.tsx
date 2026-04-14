@@ -117,13 +117,13 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
                   const sum = qty * b.value;
                   const showDivider = i === 7;
                   return (
-                    <>
+                    <Fragment key={b.key}>
                       {showDivider && (
-                        <tr key="divider">
+                        <tr>
                           <td colSpan={3} className="bg-neutral-100 px-3 py-1 text-xs text-neutral-400 font-medium">Монеты</td>
                         </tr>
                       )}
-                      <tr key={b.key} className="border-t border-neutral-100">
+                      <tr className="border-t border-neutral-100">
                         <td className="px-3 py-1.5 text-neutral-700 font-medium">{b.label}</td>
                         <td className="px-3 py-1.5 text-center">
                           <input
@@ -138,7 +138,7 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
                           {sum > 0 ? fmt(sum) : "—"}
                         </td>
                       </tr>
-                    </>
+                    </Fragment>
                   );
                 })}
                 <tr className="border-t-2 border-neutral-300 bg-neutral-50">

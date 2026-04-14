@@ -309,6 +309,8 @@ def handler(event: dict, context) -> dict:
                     absence_fine = ALCOHOL_FINE if absence_reason == "alcohol" else (
                         float(body.get("absence_fine")) if body.get("absence_fine") else None
                     )
+                    _cashless_ins = float(body.get("revenue_cashless") or 0) if body.get("revenue_cashless") else None
+                    _total_ins = float(body.get("revenue_total") or 0) if body.get("revenue_total") else _cashless_ins
                     cur.execute("""
                         INSERT INTO schedule_entries (work_date, route_id, graph_number, bus_id, driver_id, conductor_id, terminal_id, fuel_spent,
                           revenue_cashless, revenue_total, ticket_price, tickets_sold, is_overtime, fuel_price_override,
@@ -323,8 +325,8 @@ def handler(event: dict, context) -> dict:
                         body.get("conductor_id") or None,
                         body.get("terminal_id") or None,
                         body.get("fuel_spent") or None,
-                        body.get("revenue_cashless") or None,
-                        body.get("revenue_cashless") or None,  # total = cashless only
+                        _cashless_ins,
+                        _total_ins,
                         body.get("ticket_price") or None,
                         body.get("tickets_sold") or None,
                         body.get("is_overtime", False),
@@ -370,11 +372,13 @@ def handler(event: dict, context) -> dict:
                                             updated_at = NOW()
                                     """, (ptype, pid, y_m[0], y_m[1], ALCOHOL_FINE, ALCOHOL_FINE))
 
-                    cashless = body.get("revenue_cashless") or None
+                    cashless = float(body.get("revenue_cashless") or 0) if body.get("revenue_cashless") else None
+                    # revenue_total принимаем явно, либо используем cashless как резерв
+                    revenue_total = float(body.get("revenue_total") or 0) if body.get("revenue_total") else cashless
                     cur.execute("""
                         UPDATE schedule_entries
                         SET bus_id=%s, driver_id=%s, conductor_id=%s, graph_number=%s, terminal_id=%s, fuel_spent=%s,
-                            revenue_cash=NULL, revenue_cashless=%s, revenue_total=%s, ticket_price=%s, tickets_sold=%s,
+                            revenue_cashless=%s, revenue_total=%s, ticket_price=%s, tickets_sold=%s,
                             is_overtime=%s, fuel_price_override=%s,
                             absence_reason=%s, absence_fine=%s
                         WHERE id=%s
@@ -386,7 +390,7 @@ def handler(event: dict, context) -> dict:
                         body.get("terminal_id") or None,
                         body.get("fuel_spent") or None,
                         cashless,
-                        cashless,  # total = cashless
+                        revenue_total,
                         body.get("ticket_price") or None,
                         body.get("tickets_sold") or None,
                         body.get("is_overtime", False),

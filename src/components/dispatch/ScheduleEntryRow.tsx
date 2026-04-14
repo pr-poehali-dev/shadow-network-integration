@@ -215,6 +215,7 @@ export default function ScheduleEntryRow({
                   const cashlessVal = v ? Number(v) : null;
                   onUpdate(entry, {
                     revenue_cashless: cashlessVal,
+                    // revenue_total = cashless, т.к. в системе выручка вносится только через терминал
                     revenue_total: cashlessVal,
                   });
                 }} />

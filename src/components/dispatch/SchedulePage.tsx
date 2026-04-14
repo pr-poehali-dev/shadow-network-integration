@@ -173,7 +173,7 @@ export default function SchedulePage({ onAccidentCreated }: { onAccidentCreated?
       fuel_spent: merged.fuel_spent,
       fuel_price_override: merged.fuel_price_override,
       revenue_cashless: merged.revenue_cashless,
-      revenue_total: merged.revenue_cashless,
+      revenue_total: merged.revenue_total ?? merged.revenue_cashless,
       ticket_price: merged.ticket_price,
       tickets_sold: merged.tickets_sold,
       is_overtime: merged.is_overtime,
@@ -252,7 +252,8 @@ export default function SchedulePage({ onAccidentCreated }: { onAccidentCreated?
     return result;
   }, [entries]);
 
-  const calcEntryTotal = useCallback((e: Entry) => Number(e.revenue_cashless ?? 0), []);
+  // Полная выручка: revenue_total если заполнен, иначе cashless (безналичные через терминал)
+  const calcEntryTotal = useCallback((e: Entry) => Number(e.revenue_total ?? e.revenue_cashless ?? 0), []);
   const calcEntryTickets = useCallback((e: Entry) => {
     const t = calcEntryTotal(e);
     return t ? Math.floor(t / ticketPrice) : 0;
