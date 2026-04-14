@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/api";
 import Icon from "@/components/ui/icon";
 
@@ -156,16 +156,16 @@ export default function SchedulePage() {
       });
   }, []);
 
-  const loadSchedule = async (d: string) => {
+  const loadSchedule = useCallback(async (d: string) => {
     setLoading(true);
     const data = await api.getSchedule(d);
     setEntries(Array.isArray(data) ? data : []);
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { loadSchedule(date); }, [date]);
+  useEffect(() => { loadSchedule(date); }, [date, loadSchedule]);
 
-  const handleRouteChange = (routeId: string) => {
+  const handleRouteChange = useCallback((routeId: string) => {
     setAddRouteId(routeId);
     if (!routeId) { setAddGraphNum(""); return; }
     const route = routes.find(r => String(r.id) === routeId);
@@ -177,89 +177,107 @@ export default function SchedulePage() {
       if (!usedGraphs.has(g)) { setAddGraphNum(String(g)); return; }
     }
     setAddGraphNum("");
-  };
+  }, [routes, entries]);
 
   const handleAddRoute = async () => {
     if (!addRouteId) return;
     setAdding(true);
-    await api.createScheduleEntry({
+    const newEntry = await api.createScheduleEntry({
       work_date: date,
       route_id: Number(addRouteId),
       graph_number: addGraphNum ? Number(addGraphNum) : null,
     });
     setAddRouteId("");
     setAddGraphNum("");
-    await loadSchedule(date);
+    if (newEntry && !newEntry.error) {
+      setEntries(prev => [...prev, newEntry]);
+    } else {
+      await loadSchedule(date);
+    }
     setAdding(false);
   };
 
-  const handleUpdate = async (entry: Entry, fields: Record<string, unknown>) => {
+  const handleUpdate = useCallback(async (entry: Entry, fields: Record<string, unknown>) => {
+    const merged = { ...entry, ...fields };
+    // Оптимистичное обновление
+    setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, ...fields } as Entry : e));
     await api.updateScheduleEntry({
       id: entry.id,
-      graph_number: entry.graph_number,
-      bus_id: entry.bus_id,
-      driver_id: entry.driver_id,
-      conductor_id: entry.conductor_id,
-      terminal_id: entry.terminal_id,
-      fuel_spent: entry.fuel_spent,
-      fuel_price_override: entry.fuel_price_override,
-      revenue_cash: entry.revenue_cash,
-      revenue_cashless: entry.revenue_cashless,
-      revenue_total: entry.revenue_total,
-      ticket_price: entry.ticket_price,
-      tickets_sold: entry.tickets_sold,
-      is_overtime: entry.is_overtime,
-      ...fields,
+      graph_number: merged.graph_number,
+      bus_id: merged.bus_id,
+      driver_id: merged.driver_id,
+      conductor_id: merged.conductor_id,
+      terminal_id: merged.terminal_id,
+      fuel_spent: merged.fuel_spent,
+      fuel_price_override: merged.fuel_price_override,
+      revenue_cash: merged.revenue_cash,
+      revenue_cashless: merged.revenue_cashless,
+      revenue_total: merged.revenue_total,
+      ticket_price: merged.ticket_price,
+      tickets_sold: merged.tickets_sold,
+      is_overtime: merged.is_overtime,
     });
-    await loadSchedule(date);
-  };
+    // Для selects (водитель/автобус/кондуктор/терминал) нужно подтянуть имена — рефрешим
+    if ("bus_id" in fields || "driver_id" in fields || "conductor_id" in fields || "terminal_id" in fields) {
+      loadSchedule(date);
+    }
+  }, [date, loadSchedule]);
 
-  const handleSelectUpdate = (entry: Entry, field: string, value: string) => {
+  const handleSelectUpdate = useCallback((entry: Entry, field: string, value: string) => {
     const v = value ? Number(value) : null;
     handleUpdate(entry, { [field]: v });
-  };
+  }, [handleUpdate]);
 
   const handleDelete = async (id: number) => {
     if (!confirm("Удалить строку?")) return;
+    setEntries(prev => prev.filter(e => e.id !== id));
     await api.deleteScheduleEntry(id);
-    await loadSchedule(date);
   };
 
-  const selectedRoute = routes.find(r => String(r.id) === addRouteId);
-  const usedGraphsForRoute = new Set(
-    entries.filter(e => e.route_id === Number(addRouteId)).map(e => e.graph_number)
+  const selectedRoute = useMemo(
+    () => routes.find(r => String(r.id) === addRouteId),
+    [routes, addRouteId]
   );
-  const availableGraphs = selectedRoute
-    ? Array.from({ length: selectedRoute.max_graphs }, (_, i) => i + 1).filter(g => !usedGraphsForRoute.has(g))
-    : [];
 
-  const terminalsByOrg = terminals.reduce<Record<string, Terminal[]>>((acc, t) => {
+  const availableGraphs = useMemo(() => {
+    if (!selectedRoute) return [];
+    const used = new Set(entries.filter(e => e.route_id === Number(addRouteId)).map(e => e.graph_number));
+    return Array.from({ length: selectedRoute.max_graphs }, (_, i) => i + 1).filter(g => !used.has(g));
+  }, [selectedRoute, entries, addRouteId]);
+
+  const terminalsByOrg = useMemo(() => terminals.reduce<Record<string, Terminal[]>>((acc, t) => {
     if (!acc[t.organization]) acc[t.organization] = [];
     acc[t.organization].push(t);
     return acc;
-  }, {});
+  }, {}), [terminals]);
 
-  const groupedEntries: { route: Entry; items: Entry[] }[] = [];
-  const seen = new Map<number, Entry[]>();
-  for (const e of entries) {
-    if (!seen.has(e.route_id)) { seen.set(e.route_id, []); }
-    seen.get(e.route_id)!.push(e);
-  }
-  seen.forEach((items) => {
-    groupedEntries.push({ route: items[0], items });
-  });
+  const groupedEntries = useMemo(() => {
+    const seen = new Map<number, Entry[]>();
+    for (const e of entries) {
+      if (!seen.has(e.route_id)) seen.set(e.route_id, []);
+      seen.get(e.route_id)!.push(e);
+    }
+    const result: { route: Entry; items: Entry[] }[] = [];
+    seen.forEach(items => result.push({ route: items[0], items }));
+    return result;
+  }, [entries]);
 
-  const calcEntryTotal = (e: Entry) => Number(e.revenue_total) || ((Number(e.revenue_cash ?? 0) + Number(e.revenue_cashless ?? 0)) || 0);
-  const calcEntryTickets = (e: Entry) => {
+  const calcEntryTotal = useCallback((e: Entry) =>
+    Number(e.revenue_total) || ((Number(e.revenue_cash ?? 0) + Number(e.revenue_cashless ?? 0)) || 0),
+  []);
+
+  const calcEntryTickets = useCallback((e: Entry) => {
     const t = calcEntryTotal(e);
     return t ? Math.floor(t / ticketPrice) : 0;
-  };
+  }, [calcEntryTotal, ticketPrice]);
 
-  const dayTotalCash = entries.reduce((s, e) => s + Number(e.revenue_cash ?? 0), 0);
-  const dayTotalCashless = entries.reduce((s, e) => s + Number(e.revenue_cashless ?? 0), 0);
-  const dayTotalRevenue = entries.reduce((s, e) => s + calcEntryTotal(e), 0);
-  const dayTotalTickets = entries.reduce((s, e) => s + calcEntryTickets(e), 0);
-  const dayTotalFuel = entries.reduce((s, e) => s + Number(e.fuel_spent ?? 0), 0);
+  const { dayTotalCash, dayTotalCashless, dayTotalRevenue, dayTotalTickets, dayTotalFuel } = useMemo(() => ({
+    dayTotalCash: entries.reduce((s, e) => s + Number(e.revenue_cash ?? 0), 0),
+    dayTotalCashless: entries.reduce((s, e) => s + Number(e.revenue_cashless ?? 0), 0),
+    dayTotalRevenue: entries.reduce((s, e) => s + (Number(e.revenue_total) || Number(e.revenue_cash ?? 0) + Number(e.revenue_cashless ?? 0)), 0),
+    dayTotalTickets: entries.reduce((s, e) => s + (Number(e.revenue_total) || Number(e.revenue_cash ?? 0) + Number(e.revenue_cashless ?? 0) ? Math.floor((Number(e.revenue_total) || Number(e.revenue_cash ?? 0) + Number(e.revenue_cashless ?? 0)) / ticketPrice) : 0), 0),
+    dayTotalFuel: entries.reduce((s, e) => s + Number(e.fuel_spent ?? 0), 0),
+  }), [entries, ticketPrice]);
 
   return (
     <div>

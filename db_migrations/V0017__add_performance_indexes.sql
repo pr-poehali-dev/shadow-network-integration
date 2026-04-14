@@ -1,0 +1,11 @@
+CREATE INDEX IF NOT EXISTS idx_se_route_id ON t_p75004909_shadow_network_integ.schedule_entries(route_id);
+CREATE INDEX IF NOT EXISTS idx_se_driver_id ON t_p75004909_shadow_network_integ.schedule_entries(driver_id);
+CREATE INDEX IF NOT EXISTS idx_se_conductor_id ON t_p75004909_shadow_network_integ.schedule_entries(conductor_id);
+CREATE INDEX IF NOT EXISTS idx_se_bus_id ON t_p75004909_shadow_network_integ.schedule_entries(bus_id);
+CREATE INDEX IF NOT EXISTS idx_se_terminal_id ON t_p75004909_shadow_network_integ.schedule_entries(terminal_id);
+CREATE INDEX IF NOT EXISTS idx_se_work_date_route ON t_p75004909_shadow_network_integ.schedule_entries(work_date, route_id);
+CREATE INDEX IF NOT EXISTS idx_se_work_date_driver ON t_p75004909_shadow_network_integ.schedule_entries(work_date, driver_id);
+CREATE INDEX IF NOT EXISTS idx_se_work_date_conductor ON t_p75004909_shadow_network_integ.schedule_entries(work_date, conductor_id);
+CREATE INDEX IF NOT EXISTS idx_rg_work_date_route ON t_p75004909_shadow_network_integ.route_graphs(work_date, route_id);
+CREATE INDEX IF NOT EXISTS idx_drivers_full_name ON t_p75004909_shadow_network_integ.drivers(full_name);
+CREATE INDEX IF NOT EXISTS idx_conductors_full_name ON t_p75004909_shadow_network_integ.conductors(full_name);

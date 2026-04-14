@@ -125,10 +125,13 @@ export default function SalaryPage() {
     setItrLoading(false);
   };
 
+  // При смене периода — грузим оба таба параллельно сразу
   useEffect(() => {
-    if (subTab === "drivers") loadDrivers();
-    else loadItr();
-  }, [year, month, subTab]);
+    loadDrivers();
+    loadItr();
+  }, [year, month]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // При смене таба — не перезагружаем, данные уже есть
 
   const saveItr = async (emp: ItrEmployee) => {
     const e = itrEdit[emp.id];

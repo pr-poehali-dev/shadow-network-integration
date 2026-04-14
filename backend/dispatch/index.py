@@ -439,87 +439,76 @@ def handler(event: dict, context) -> dict:
                 if not year or not month:
                     return err("year and month required")
 
-                # Водители
+                import calendar
+                y, m = int(year), int(month)
+                date_from = f"{y:04d}-{m:02d}-01"
+                last_day = calendar.monthrange(y, m)[1]
+                date_to = f"{y:04d}-{m:02d}-{last_day:02d}"
+
                 cur.execute("""
                     SELECT
-                        d.id,
-                        d.full_name,
+                        d.id, d.full_name,
                         COUNT(se.id) AS shifts,
                         COALESCE(SUM(se.fuel_spent), 0) AS total_fuel,
                         ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
                         ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers,
-                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names,
-                        ARRAY_AGG(se.fuel_spent ORDER BY se.work_date) AS fuel_values
+                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names
                     FROM drivers d
-                    LEFT JOIN schedule_entries se
-                        ON se.driver_id = d.id
-                        AND EXTRACT(YEAR FROM se.work_date) = %s
-                        AND EXTRACT(MONTH FROM se.work_date) = %s
+                    JOIN schedule_entries se ON se.driver_id = d.id
+                        AND se.work_date BETWEEN %s AND %s
                     LEFT JOIN routes r ON r.id = se.route_id
                     LEFT JOIN terminals t ON t.id = se.terminal_id
                     GROUP BY d.id, d.full_name
                     ORDER BY d.full_name
-                """, (year, month))
+                """, (date_from, date_to))
                 drivers = list(cur.fetchall())
 
-                # Кондукторы
                 cur.execute("""
                     SELECT
-                        c.id,
-                        c.full_name,
+                        c.id, c.full_name,
                         COUNT(se.id) AS shifts,
                         COALESCE(SUM(se.fuel_spent), 0) AS total_fuel,
                         ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
                         ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers,
-                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names,
-                        ARRAY_AGG(se.fuel_spent ORDER BY se.work_date) AS fuel_values
+                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names
                     FROM conductors c
-                    LEFT JOIN schedule_entries se
-                        ON se.conductor_id = c.id
-                        AND EXTRACT(YEAR FROM se.work_date) = %s
-                        AND EXTRACT(MONTH FROM se.work_date) = %s
+                    JOIN schedule_entries se ON se.conductor_id = c.id
+                        AND se.work_date BETWEEN %s AND %s
                     LEFT JOIN routes r ON r.id = se.route_id
                     LEFT JOIN terminals t ON t.id = se.terminal_id
                     GROUP BY c.id, c.full_name
                     ORDER BY c.full_name
-                """, (year, month))
+                """, (date_from, date_to))
                 conductors = list(cur.fetchall())
 
-                # Транспортные средства
                 cur.execute("""
                     SELECT
-                        b.id,
-                        b.board_number,
-                        b.model,
+                        b.id, b.board_number, b.model,
                         COUNT(se.id) AS shifts,
                         COALESCE(SUM(se.fuel_spent), 0) AS total_fuel,
                         ARRAY_AGG(se.work_date::text ORDER BY se.work_date) AS dates,
                         ARRAY_AGG(r.number ORDER BY se.work_date) AS route_numbers,
-                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names,
-                        ARRAY_AGG(se.fuel_spent ORDER BY se.work_date) AS fuel_values
+                        ARRAY_AGG(t.name ORDER BY se.work_date) AS terminal_names
                     FROM buses b
-                    LEFT JOIN schedule_entries se
-                        ON se.bus_id = b.id
-                        AND EXTRACT(YEAR FROM se.work_date) = %s
-                        AND EXTRACT(MONTH FROM se.work_date) = %s
+                    JOIN schedule_entries se ON se.bus_id = b.id
+                        AND se.work_date BETWEEN %s AND %s
                     LEFT JOIN routes r ON r.id = se.route_id
                     LEFT JOIN terminals t ON t.id = se.terminal_id
                     GROUP BY b.id, b.board_number, b.model
                     ORDER BY b.board_number
-                """, (year, month))
+                """, (date_from, date_to))
                 buses = list(cur.fetchall())
 
                 cur.execute("""
                     SELECT
-                        COALESCE(SUM(se.revenue_cash), 0) AS total_cash,
-                        COALESCE(SUM(se.revenue_cashless), 0) AS total_cashless,
-                        COALESCE(SUM(se.revenue_total), 0) AS total_revenue,
-                        COALESCE(SUM(se.tickets_sold), 0) AS total_tickets,
-                        COALESCE(SUM(se.fuel_spent), 0) AS total_fuel
-                    FROM schedule_entries se
-                    WHERE EXTRACT(YEAR FROM se.work_date) = %s
-                      AND EXTRACT(MONTH FROM se.work_date) = %s
-                """, (year, month))
+                        COALESCE(SUM(revenue_cash), 0) AS total_cash,
+                        COALESCE(SUM(revenue_cashless), 0) AS total_cashless,
+                        COALESCE(SUM(revenue_total), 0) AS total_revenue,
+                        COALESCE(SUM(tickets_sold), 0) AS total_tickets,
+                        COALESCE(SUM(fuel_spent), 0) AS total_fuel
+                    FROM schedule_entries
+                    WHERE work_date BETWEEN %s AND %s
+                """, (date_from, date_to))
                 totals = dict(cur.fetchone())
 
                 return ok({"drivers": drivers, "conductors": conductors, "buses": buses, "totals": totals})
@@ -607,28 +596,32 @@ def handler(event: dict, context) -> dict:
                 month = params.get("month")
                 if not year or not month:
                     return err("year and month required")
-                fuel_price_default = 0
+
+                import calendar as _cal
+                y2, m2 = int(year), int(month)
+                date_from2 = f"{y2:04d}-{m2:02d}-01"
+                last_day2 = _cal.monthrange(y2, m2)[1]
+                date_to2 = f"{y2:04d}-{m2:02d}-{last_day2:02d}"
+
                 cur.execute("SELECT value FROM settings WHERE key = 'fuel_price'")
                 row = cur.fetchone()
-                if row:
-                    fuel_price_default = float(row["value"] or 0)
+                fuel_price_default = float(row["value"] or 0) if row else 0
 
                 cur.execute("""
                     SELECT
-                        se.id, se.work_date, se.graph_number,
-                        r.number as route_number, r.name as route_name,
+                        se.id, se.work_date,
+                        r.number as route_number,
                         d.id as driver_id, d.full_name as driver_name, d.is_official as driver_is_official,
                         c.id as conductor_id, c.full_name as conductor_name,
-                        se.revenue_cash, se.revenue_cashless, se.revenue_total,
+                        COALESCE(se.revenue_total, se.revenue_cash + se.revenue_cashless, 0) as total,
                         se.fuel_spent, se.fuel_price_override, se.is_overtime
                     FROM schedule_entries se
                     JOIN routes r ON r.id = se.route_id
                     LEFT JOIN drivers d ON d.id = se.driver_id
                     LEFT JOIN conductors c ON c.id = se.conductor_id
-                    WHERE EXTRACT(YEAR FROM se.work_date) = %s
-                      AND EXTRACT(MONTH FROM se.work_date) = %s
+                    WHERE se.work_date BETWEEN %s AND %s
                     ORDER BY se.work_date, r.number
-                """, (year, month))
+                """, (date_from2, date_to2))
                 entries = list(cur.fetchall())
 
                 ROUTE6_FIXED = 7000.0
@@ -638,7 +631,7 @@ def handler(event: dict, context) -> dict:
                 conductor_map = {}
 
                 for e in entries:
-                    total = float(e.get("revenue_total") or 0) or (float(e.get("revenue_cash") or 0) + float(e.get("revenue_cashless") or 0))
+                    total = float(e.get("total") or 0)
                     fuel_price = float(e.get("fuel_price_override") or fuel_price_default)
                     fuel_cost = float(e.get("fuel_spent") or 0) * fuel_price
                     has_conductor = e.get("conductor_id") is not None
