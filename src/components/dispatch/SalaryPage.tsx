@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import Icon from "@/components/ui/icon";
 
-type SubTab = "drivers" | "itr";
+type SubTab = "crew" | "itr";
 
 interface DriverSalaryShift {
   date: string;
@@ -35,6 +35,22 @@ interface ConductorSalary {
   full_name: string;
   shifts: ConductorShift[];
   total_earned: number;
+}
+
+interface CrewRecord {
+  id: number;
+  type: "driver" | "conductor";
+  full_name: string;
+  is_official?: boolean;
+  total_earned: number;
+  shifts_count: number;
+  // ведомость
+  sick_leave: string;
+  advance_cash: string;
+  advance_card: string;
+  salary_card: string;
+  overtime_sum: string;
+  fines: string;
 }
 
 interface ItrEmployee {
@@ -70,23 +86,111 @@ function calcAdvance(emp: ItrEmployee): number {
   return Math.round(calcItrEarned(emp) * 0.4 * 100) / 100;
 }
 
+function calcCrewTotal(r: CrewRecord): number {
+  const sick = Number(r.sick_leave) || 0;
+  const advCash = Number(r.advance_cash) || 0;
+  const advCard = Number(r.advance_card) || 0;
+  const salCard = Number(r.salary_card) || 0;
+  const overtime = Number(r.overtime_sum) || 0;
+  const fines = Number(r.fines) || 0;
+  return r.total_earned + sick + overtime - advCash - advCard - salCard - fines;
+}
+
+function printCrewStatement(
+  records: CrewRecord[],
+  month: number,
+  year: number,
+  title: string
+) {
+  const monthName = MONTHS[month - 1];
+  const rows = records.map(r => {
+    const total = calcCrewTotal(r);
+    return `
+      <tr>
+        <td>${r.full_name}${r.type === "driver" ? `<br/><small>${r.is_official ? "Официальный" : "Неофициальный"}</small>` : "<br/><small>Кондуктор</small>"}</td>
+        <td class="num">${fmt(r.total_earned)}</td>
+        <td class="num">${r.sick_leave ? fmt(Number(r.sick_leave)) : "—"}</td>
+        <td class="num">${r.advance_cash ? fmt(Number(r.advance_cash)) : "—"}</td>
+        <td class="num">${r.advance_card ? fmt(Number(r.advance_card)) : "—"}</td>
+        <td class="num">${r.salary_card ? fmt(Number(r.salary_card)) : "—"}</td>
+        <td class="num">${r.overtime_sum ? fmt(Number(r.overtime_sum)) : "—"}</td>
+        <td class="num">${r.fines ? fmt(Number(r.fines)) : "—"}</td>
+        <td class="num total ${total < 0 ? "neg" : ""}">${fmt(total)}</td>
+        <td class="sign"></td>
+      </tr>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Ведомость ${title} ${monthName} ${year}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #111; }
+    h2 { font-size: 14px; margin-bottom: 2px; }
+    p.sub { color: #666; font-size: 10px; margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f0f0f0; padding: 6px 5px; font-size: 9px; text-transform: uppercase;
+         letter-spacing:.04em; border: 1px solid #ccc; text-align: center; }
+    td { padding: 5px 5px; border: 1px solid #ddd; vertical-align: middle; }
+    td small { color: #888; font-size: 9px; }
+    td.num { text-align: right; }
+    td.total { font-weight: bold; background: #f9f9f9; }
+    td.neg { color: #c00; }
+    td.sign { width: 60px; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .footer { margin-top: 20px; font-size: 10px; color: #aaa; text-align: right; }
+    @media print { body { margin: 10px; } }
+  </style>
+</head>
+<body>
+  <h2>Расчётная ведомость — ${title}</h2>
+  <p class="sub">${monthName} ${year} г. &nbsp;|&nbsp; Сформировано: ${new Date().toLocaleString("ru")}</p>
+  <table>
+    <thead>
+      <tr>
+        <th style="text-align:left;width:160px">ФИО</th>
+        <th>Начислено, ₽</th>
+        <th>Больничный, ₽</th>
+        <th>Аванс (нал.), ₽</th>
+        <th>Аванс (карта), ₽</th>
+        <th>ЗП (карта), ₽</th>
+        <th>Подработка, ₽</th>
+        <th>Штрафы, ₽</th>
+        <th>Итого к выдаче, ₽</th>
+        <th>Подпись</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="footer">Всего человек: ${records.length}</div>
+</body>
+</html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 400);
+}
+
 export default function SalaryPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const isAccountant = user?.role === "accountant";
   const canEditItr = isAdmin;
-  const canEditFuelPrice = isAdmin || isAccountant;
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [subTab, setSubTab] = useState<SubTab>("drivers");
+  const [subTab, setSubTab] = useState<SubTab>("crew");
 
-  // Drivers
+  // Экипажи
   const [driverData, setDriverData] = useState<{ drivers: DriverSalary[]; conductors: ConductorSalary[]; fuel_price: number } | null>(null);
   const [driverLoading, setDriverLoading] = useState(false);
-  const [expandedDriver, setExpandedDriver] = useState<number | null>(null);
-  const [expandedConductor, setExpandedConductor] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // ведомость — хранятся правки полей по ключу "d-{id}" или "c-{id}"
+  const [crewEdit, setCrewEdit] = useState<Record<string, Omit<CrewRecord, "id"|"type"|"full_name"|"is_official"|"total_earned"|"shifts_count">>>({});
 
   // ITR
   const [itrData, setItrData] = useState<ItrEmployee[]>([]);
@@ -94,10 +198,17 @@ export default function SalaryPage() {
   const [itrEdit, setItrEdit] = useState<Record<number, { days_worked: string; bonus: string; advance_paid: string; salary_paid: string; note: string }>>({});
   const [itrSaving, setItrSaving] = useState<number | null>(null);
 
-  // New ITR employee form
   const [showItrForm, setShowItrForm] = useState(false);
   const [itrForm, setItrForm] = useState({ full_name: "", position: "", base_salary: "", base_days: "" });
   const [itrFormSaving, setItrFormSaving] = useState(false);
+
+  const EMPTY_CREW = { sick_leave: "", advance_cash: "", advance_card: "", salary_card: "", overtime_sum: "", fines: "" };
+
+  const getCrewEdit = (key: string) => crewEdit[key] ?? EMPTY_CREW;
+
+  const updateCrewField = (key: string, field: string, value: string) => {
+    setCrewEdit(prev => ({ ...prev, [key]: { ...getCrewEdit(key), [field]: value } }));
+  };
 
   const loadDrivers = async () => {
     setDriverLoading(true);
@@ -125,22 +236,17 @@ export default function SalaryPage() {
     setItrLoading(false);
   };
 
-  // При смене периода — грузим оба таба параллельно сразу
   useEffect(() => {
     loadDrivers();
     loadItr();
   }, [year, month]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // При смене таба — не перезагружаем, данные уже есть
 
   const saveItr = async (emp: ItrEmployee) => {
     const e = itrEdit[emp.id];
     if (!e) return;
     setItrSaving(emp.id);
     await api.saveItrSalary({
-      employee_id: emp.id,
-      year,
-      month,
+      employee_id: emp.id, year, month,
       days_worked: Number(e.days_worked) || 0,
       bonus: Number(e.bonus) || 0,
       advance_paid: Number(e.advance_paid) || 0,
@@ -170,6 +276,142 @@ export default function SalaryPage() {
     setItrEdit(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   };
 
+  // Собираем общий список для печати
+  const buildCrewRecords = (type: "driver" | "conductor"): CrewRecord[] => {
+    if (!driverData) return [];
+    const list = type === "driver" ? driverData.drivers : driverData.conductors;
+    return list.map(p => {
+      const key = `${type[0]}-${p.id}`;
+      const ed = getCrewEdit(key);
+      return { id: p.id, type, full_name: p.full_name, is_official: (p as DriverSalary).is_official, total_earned: p.total_earned, shifts_count: p.shifts.length, ...ed };
+    });
+  };
+
+  const crewFields = [
+    { key: "sick_leave", label: "Больничный, ₽" },
+    { key: "advance_cash", label: "Аванс (нал.), ₽" },
+    { key: "advance_card", label: "Аванс (карта), ₽" },
+    { key: "salary_card", label: "ЗП (карта), ₽" },
+    { key: "overtime_sum", label: "Подработка, ₽" },
+    { key: "fines", label: "Штрафы, ₽" },
+  ];
+
+  const renderCrewSection = (
+    title: string,
+    items: DriverSalary[] | ConductorSalary[],
+    keyPrefix: "d" | "c",
+    showOfficialBadge: boolean
+  ) => (
+    <div>
+      <div className="flex items-center gap-3 mb-3">
+        <h3 className="text-base font-semibold text-neutral-800">{title}</h3>
+        <button
+          onClick={() => {
+            const records = buildCrewRecords(keyPrefix === "d" ? "driver" : "conductor");
+            printCrewStatement(records, month, year, title);
+          }}
+          className="ml-auto flex items-center gap-1.5 text-xs border border-neutral-300 px-3 py-1.5 rounded hover:bg-neutral-100 transition-colors cursor-pointer text-neutral-600">
+          <Icon name="Printer" size={13} />
+          Печать ведомости
+        </button>
+      </div>
+      {items.length === 0 ? (
+        <div className="text-neutral-400 text-sm">Нет данных</div>
+      ) : (
+        <div className="border border-neutral-200 rounded overflow-hidden">
+          {items.map((p, idx) => {
+            const key = `${keyPrefix}-${p.id}`;
+            const isExp = expandedId === key;
+            const ed = getCrewEdit(key);
+            const shifts = p.shifts;
+            const overtimeShifts = shifts.filter((s: DriverSalaryShift | ConductorShift) => s.is_overtime).length;
+            const rec: CrewRecord = { id: p.id, type: keyPrefix === "d" ? "driver" : "conductor", full_name: p.full_name, is_official: (p as DriverSalary).is_official, total_earned: p.total_earned, shifts_count: shifts.length, ...ed };
+            const toGet = calcCrewTotal(rec);
+
+            return (
+              <div key={p.id} className={idx > 0 ? "border-t border-neutral-100" : ""}>
+                <div className="px-4 py-3 flex items-center gap-3 hover:bg-neutral-50 cursor-pointer transition-colors"
+                  onClick={() => setExpandedId(isExp ? null : key)}>
+                  <span className="font-medium text-neutral-900 flex-1">{p.full_name}</span>
+                  {showOfficialBadge && (
+                    <span className={`text-xs px-2 py-0.5 rounded ${(p as DriverSalary).is_official ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"}`}>
+                      {(p as DriverSalary).is_official ? "Официальный" : "Неофициальный"}
+                    </span>
+                  )}
+                  <span className="text-xs text-neutral-500">{shifts.length} смен{overtimeShifts > 0 && <span className="ml-1 text-amber-600">· {overtimeShifts} подраб.</span>}</span>
+                  <span className="font-bold text-neutral-900 text-sm">{fmt(p.total_earned)} ₽</span>
+                  <Icon name={isExp ? "ChevronUp" : "ChevronDown"} size={14} className="text-neutral-400" />
+                </div>
+
+                {isExp && (
+                  <div className="border-t border-neutral-100 bg-neutral-50 px-4 pb-4">
+                    {/* Детализация смен */}
+                    <table className="w-full text-xs mt-3 mb-4">
+                      <thead>
+                        <tr className="text-neutral-400 uppercase tracking-wide">
+                          <th className="text-left py-1.5">Дата</th>
+                          <th className="text-left">Маршрут</th>
+                          <th className="text-right">Выручка</th>
+                          {keyPrefix === "d" && <th className="text-right">Топливо</th>}
+                          <th className="text-right">Заработал</th>
+                          <th className="text-center">Подработка</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shifts.map((s: DriverSalaryShift | ConductorShift, i: number) => (
+                          <tr key={i} className={`border-t border-neutral-100 ${s.is_overtime ? "bg-amber-50" : ""}`}>
+                            <td className="py-1.5 text-neutral-600">{s.date.split("-").reverse().join(".")}</td>
+                            <td className="text-neutral-600">№ {s.route}</td>
+                            <td className="text-right text-neutral-600">{fmt(s.total)} ₽</td>
+                            {keyPrefix === "d" && <td className="text-right text-red-400">−{fmt((s as DriverSalaryShift).fuel_cost)} ₽</td>}
+                            <td className="text-right font-semibold text-neutral-900">{fmt(s.earned)} ₽</td>
+                            <td className="text-center">{s.is_overtime ? <span className="text-amber-600">Да</span> : <span className="text-neutral-300">—</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-neutral-200 font-bold text-neutral-900">
+                          <td colSpan={keyPrefix === "d" ? 4 : 3} className="py-1.5">Начислено за смены:</td>
+                          <td className="text-right">{fmt(p.total_earned)} ₽</td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+
+                    {/* Поля ведомости */}
+                    <div className="border-t border-neutral-200 pt-3">
+                      <p className="text-xs text-neutral-500 mb-2 font-medium">Ведомость выплат</p>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 mb-3">
+                        {crewFields.map(f => (
+                          <div key={f.key}>
+                            <label className="text-xs text-neutral-400 block mb-0.5">{f.label}</label>
+                            <input
+                              type="number" min="0" step="0.01"
+                              value={(ed as Record<string, string>)[f.key]}
+                              onChange={ev => updateCrewField(key, f.key, ev.target.value)}
+                              placeholder="0"
+                              className="border border-neutral-300 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:border-neutral-600 text-right"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-4 pt-2 border-t border-neutral-200">
+                        <span className="text-xs text-neutral-500">Начислено: <span className="font-semibold text-neutral-900">{fmt(p.total_earned)} ₽</span></span>
+                        <span className={`text-sm font-bold ml-auto ${toGet < 0 ? "text-red-600" : "text-neutral-900"}`}>
+                          Итого к выдаче: {fmt(toGet)} ₽
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div>
       <div className="flex items-center gap-4 mb-6 flex-wrap">
@@ -187,7 +429,7 @@ export default function SalaryPage() {
       </div>
 
       <div className="flex gap-1 mb-6">
-        {([["drivers", "Водители и кондукторы"], ["itr", "ИТР"]] as [SubTab, string][]).map(([id, label]) => (
+        {([["crew", "Экипажи ТС"], ["itr", "ИТР"]] as [SubTab, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setSubTab(id)}
             className={`px-4 py-2 text-sm rounded cursor-pointer transition-colors ${
               subTab === id ? "bg-neutral-900 text-white" : "border border-neutral-300 text-neutral-600 hover:bg-neutral-100"
@@ -197,7 +439,7 @@ export default function SalaryPage() {
         ))}
       </div>
 
-      {subTab === "drivers" && (
+      {subTab === "crew" && (
         <div>
           {driverLoading ? (
             <div className="text-neutral-500 text-sm py-8 text-center">Загрузка...</div>
@@ -209,123 +451,8 @@ export default function SalaryPage() {
                   Базовая цена топлива: {driverData.fuel_price} ₽/л
                 </div>
               )}
-
-              {/* Водители */}
-              <div>
-                <h3 className="text-base font-semibold text-neutral-800 mb-3">Водители</h3>
-                {driverData.drivers.length === 0 ? (
-                  <div className="text-neutral-400 text-sm">Нет данных</div>
-                ) : (
-                  <div className="border border-neutral-200 rounded overflow-hidden">
-                    {driverData.drivers.map((d, idx) => (
-                      <div key={d.id} className={idx > 0 ? "border-t border-neutral-100" : ""}>
-                        <div
-                          className="px-4 py-3 flex items-center gap-3 hover:bg-neutral-50 cursor-pointer transition-colors"
-                          onClick={() => setExpandedDriver(expandedDriver === d.id ? null : d.id)}>
-                          <span className="font-medium text-neutral-900 flex-1">{d.full_name}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded ${d.is_official ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"}`}>
-                            {d.is_official ? "Официальный" : "Неофициальный"}
-                          </span>
-                          <span className="text-xs text-neutral-500">{d.shifts.length} смен</span>
-                          <span className="font-bold text-neutral-900 text-sm">{fmt(d.total_earned)} ₽</span>
-                          <Icon name={expandedDriver === d.id ? "ChevronUp" : "ChevronDown"} size={14} className="text-neutral-400" />
-                        </div>
-                        {expandedDriver === d.id && (
-                          <div className="px-4 pb-3 border-t border-neutral-100 bg-neutral-50">
-                            <table className="w-full text-xs mt-2">
-                              <thead>
-                                <tr className="text-neutral-400 uppercase tracking-wide">
-                                  <th className="text-left py-1.5">Дата</th>
-                                  <th className="text-left">Маршрут</th>
-                                  <th className="text-right">Выручка</th>
-                                  <th className="text-right">Топливо</th>
-                                  <th className="text-right">Заработал</th>
-                                  <th className="text-center">Подработка</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {d.shifts.map((s, i) => (
-                                  <tr key={i} className={`border-t border-neutral-100 ${s.is_overtime ? "bg-amber-50" : ""}`}>
-                                    <td className="py-1.5 text-neutral-600">{s.date.split("-").reverse().join(".")}</td>
-                                    <td className="text-neutral-600">№ {s.route}</td>
-                                    <td className="text-right text-neutral-600">{fmt(s.total)} ₽</td>
-                                    <td className="text-right text-red-400">−{fmt(s.fuel_cost)} ₽</td>
-                                    <td className="text-right font-semibold text-neutral-900">{fmt(s.earned)} ₽</td>
-                                    <td className="text-center">{s.is_overtime ? <span className="text-amber-600">Да</span> : <span className="text-neutral-300">—</span>}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                              <tfoot>
-                                <tr className="border-t-2 border-neutral-200 font-bold text-neutral-900">
-                                  <td colSpan={4} className="py-2">Итого:</td>
-                                  <td className="text-right text-sm">{fmt(d.total_earned)} ₽</td>
-                                  <td></td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Кондукторы */}
-              <div>
-                <h3 className="text-base font-semibold text-neutral-800 mb-3">Кондукторы</h3>
-                {driverData.conductors.length === 0 ? (
-                  <div className="text-neutral-400 text-sm">Нет данных</div>
-                ) : (
-                  <div className="border border-neutral-200 rounded overflow-hidden">
-                    {driverData.conductors.map((c, idx) => (
-                      <div key={c.id} className={idx > 0 ? "border-t border-neutral-100" : ""}>
-                        <div
-                          className="px-4 py-3 flex items-center gap-3 hover:bg-neutral-50 cursor-pointer transition-colors"
-                          onClick={() => setExpandedConductor(expandedConductor === c.id ? null : c.id)}>
-                          <span className="font-medium text-neutral-900 flex-1">{c.full_name}</span>
-                          <span className="text-xs text-neutral-500">{c.shifts.length} смен</span>
-                          <span className="font-bold text-neutral-900 text-sm">{fmt(c.total_earned)} ₽</span>
-                          <Icon name={expandedConductor === c.id ? "ChevronUp" : "ChevronDown"} size={14} className="text-neutral-400" />
-                        </div>
-                        {expandedConductor === c.id && (
-                          <div className="px-4 pb-3 border-t border-neutral-100 bg-neutral-50">
-                            <table className="w-full text-xs mt-2">
-                              <thead>
-                                <tr className="text-neutral-400 uppercase tracking-wide">
-                                  <th className="text-left py-1.5">Дата</th>
-                                  <th className="text-left">Маршрут</th>
-                                  <th className="text-right">Выручка</th>
-                                  <th className="text-right">Заработал (15%)</th>
-                                  <th className="text-center">Подработка</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {c.shifts.map((s, i) => (
-                                  <tr key={i} className={`border-t border-neutral-100 ${s.is_overtime ? "bg-amber-50" : ""}`}>
-                                    <td className="py-1.5 text-neutral-600">{s.date.split("-").reverse().join(".")}</td>
-                                    <td className="text-neutral-600">№ {s.route}</td>
-                                    <td className="text-right text-neutral-600">{fmt(s.total)} ₽</td>
-                                    <td className="text-right font-semibold text-neutral-900">{fmt(s.earned)} ₽</td>
-                                    <td className="text-center">{s.is_overtime ? <span className="text-amber-600">Да</span> : <span className="text-neutral-300">—</span>}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                              <tfoot>
-                                <tr className="border-t-2 border-neutral-200 font-bold text-neutral-900">
-                                  <td colSpan={3} className="py-2">Итого:</td>
-                                  <td className="text-right text-sm">{fmt(c.total_earned)} ₽</td>
-                                  <td></td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {renderCrewSection("Водители", driverData.drivers, "d", true)}
+              {renderCrewSection("Кондукторы", driverData.conductors, "c", false)}
             </div>
           )}
         </div>
