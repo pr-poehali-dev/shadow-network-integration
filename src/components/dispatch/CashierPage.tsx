@@ -415,85 +415,95 @@ ${billRowsHtml}
             </div>
           )}
 
-          {/* Список ТС */}
-          <div className="border border-neutral-200 rounded-lg overflow-hidden">
-            <div className="bg-neutral-50 px-4 py-2 text-sm font-semibold text-neutral-700 border-b border-neutral-200 flex items-center gap-2">
-              <Icon name="Bus" size={14} />
-              Транспортные средства ({rows.length})
-              <span className="text-xs font-normal text-neutral-400 ml-1">— нажмите для внесения данных</span>
+          {/* Список ТС — таблица */}
+          <div className="border border-neutral-200 rounded-xl overflow-hidden">
+            <div className="bg-neutral-800 px-4 py-2 flex items-center gap-2">
+              <Icon name="Bus" size={14} className="text-neutral-400" />
+              <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wide">
+                Транспортные средства — {rows.length} ТС
+              </span>
+              <span className="text-xs text-neutral-500 ml-1">· нажмите для внесения данных</span>
             </div>
             {loading ? (
               <div className="text-sm text-neutral-400 text-center py-8">Загрузка...</div>
             ) : rows.length === 0 ? (
               <div className="text-sm text-neutral-400 text-center py-8">В расписании на эту дату нет записей</div>
             ) : (
-              <div className="divide-y divide-neutral-100">
-                {rows.map(row => {
-                  const hasFilled = row.report_id != null;
-                  const hasRestriction = !!row.restriction;
-                  const cash = Number(row.cash_total) || 0;
-                  const cashless = Number(row.cashless_amount) || 0;
-                  const crew = [row.driver_name, row.conductor_name].filter(Boolean).join(" / ");
-                  return (
-                    <div key={row.schedule_entry_id}
-                      onClick={() => setActiveForm(row)}
-                      className={`px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors flex items-center gap-4 ${
-                        hasRestriction
-                          ? row.restriction!.restriction_type === "block"
-                            ? "bg-red-50/50 border-l-2 border-red-400"
-                            : "bg-orange-50/50 border-l-2 border-orange-400"
-                          : hasFilled
-                          ? "border-l-2 border-green-400"
-                          : "border-l-2 border-transparent"
-                      }`}>
-                      <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${hasFilled ? "bg-green-500" : "bg-neutral-300"}`} />
-
-                      {/* Маршрут + борт */}
-                      <div className="shrink-0 text-center w-20">
-                        <div className="font-bold text-sm text-neutral-900">М.{row.route_number}</div>
-                        {row.graph_number != null && <div className="text-xs text-neutral-400">Гр.{row.graph_number}</div>}
-                        <div className="text-xs font-mono text-neutral-600 mt-0.5">{row.board_number || "—"}</div>
-                      </div>
-
-                      {/* ФИО */}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-neutral-800 truncate">{crew || "—"}</div>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          {row.is_overtime && (
-                            <span className="text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded">Подработка</span>
-                          )}
-                          {hasRestriction && (
-                            <span className={`text-xs px-1.5 py-0.5 rounded ${
-                              row.restriction!.restriction_type === "block" ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"
-                            }`}>
-                              {row.restriction!.restriction_type === "block" ? "Запрет выдачи" : "Лимит"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Суммы */}
-                      <div className="text-right shrink-0">
-                        {hasFilled ? (
-                          <>
-                            <div className="text-sm font-bold text-neutral-900">{fmt(cash + cashless)} ₽</div>
-                            <div className="text-xs text-neutral-400">
-                              <span className="text-green-600">{fmt(cash)}</span>
-                              {cashless > 0 && <span className="text-blue-600"> + {fmt(cashless)} безнал</span>}
-                            </div>
-                            {row.tickets_sold != null && (
-                              <div className="text-xs text-neutral-400">{row.tickets_sold} билетов</div>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-xs text-neutral-400">Не внесено</span>
-                        )}
-                      </div>
-
-                      <Icon name="ChevronRight" size={14} className="text-neutral-400 shrink-0" />
-                    </div>
-                  );
-                })}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-800 text-neutral-200">
+                      <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 w-8">№</th>
+                      <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap">Марш. / Граф.</th>
+                      <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap">Борт</th>
+                      <th className="px-2 py-2 text-left font-semibold border-r border-neutral-700 min-w-[160px]">ФИО экипажа</th>
+                      <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap">Билеты</th>
+                      <th className="px-2 py-2 text-right font-semibold border-r border-neutral-700 whitespace-nowrap text-blue-300">Безнал ₽</th>
+                      <th className="px-2 py-2 text-right font-semibold border-r border-neutral-700 whitespace-nowrap text-green-300">Нал ₽</th>
+                      <th className="px-2 py-2 text-right font-semibold border-r border-neutral-700 whitespace-nowrap bg-yellow-900/30">Выручка ₽</th>
+                      <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap">Ограничение</th>
+                      <th className="px-2 py-2 text-center font-semibold whitespace-nowrap">Статус</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, i) => {
+                      const hasFilled = row.report_id != null;
+                      const hasRestriction = !!row.restriction;
+                      const cash = Number(row.cash_total) || 0;
+                      const cashless = Number(row.cashless_amount) || 0;
+                      const crew = [row.driver_name, row.conductor_name].filter(Boolean).join(" / ");
+                      return (
+                        <tr key={row.schedule_entry_id}
+                          onClick={() => setActiveForm(row)}
+                          className={`border-b border-neutral-100 cursor-pointer transition-colors ${
+                            i % 2 === 0 ? "bg-white" : "bg-neutral-50/50"
+                          } ${
+                            hasRestriction && row.restriction!.restriction_type === "block"
+                              ? "bg-red-50/40"
+                              : hasRestriction
+                              ? "bg-orange-50/40"
+                              : ""
+                          } hover:bg-blue-50/40`}>
+                          <td className="px-2 py-2 text-center text-neutral-400 border-r border-neutral-100 font-mono">{i + 1}</td>
+                          <td className="px-2 py-2 text-center border-r border-neutral-100 font-semibold text-neutral-800 whitespace-nowrap">
+                            {row.route_number}{row.graph_number != null ? ` / ${row.graph_number}` : ""}
+                            {row.is_overtime && <span className="ml-1 text-[9px] bg-violet-100 text-violet-700 px-1 py-0.5 rounded">Подраб.</span>}
+                          </td>
+                          <td className="px-2 py-2 text-center border-r border-neutral-100 font-mono text-neutral-700">{row.board_number || "—"}</td>
+                          <td className="px-2 py-2 border-r border-neutral-100 text-neutral-800">{crew || "—"}</td>
+                          <td className="px-2 py-2 text-center border-r border-neutral-100">
+                            {row.tickets_sold != null
+                              ? <span className="font-semibold text-indigo-700 font-mono">{row.tickets_sold}</span>
+                              : <span className="text-neutral-300">—</span>}
+                          </td>
+                          <td className="px-2 py-2 text-right border-r border-neutral-100 font-mono text-blue-700">
+                            {cashless > 0 ? fmt(cashless) : <span className="text-neutral-300">—</span>}
+                          </td>
+                          <td className="px-2 py-2 text-right border-r border-neutral-100 font-mono text-green-700">
+                            {cash > 0 ? fmt(cash) : <span className="text-neutral-300">—</span>}
+                          </td>
+                          <td className="px-2 py-2 text-right border-r border-neutral-100 font-bold font-mono text-neutral-900 bg-yellow-50/50">
+                            {hasFilled ? fmt(cash + cashless) : <span className="text-neutral-300">—</span>}
+                          </td>
+                          <td className="px-2 py-2 text-center border-r border-neutral-100">
+                            {hasRestriction ? (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                row.restriction!.restriction_type === "block" ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"
+                              }`}>
+                                {row.restriction!.restriction_type === "block" ? "Запрет" : "Лимит"}
+                              </span>
+                            ) : <span className="text-neutral-300">—</span>}
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            {hasFilled
+                              ? <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">✓ внесено</span>
+                              : <span className="text-[10px] bg-neutral-100 text-neutral-400 px-1.5 py-0.5 rounded">ожидание</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

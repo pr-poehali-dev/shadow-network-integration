@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import Icon from "@/components/ui/icon";
 import { Accident, STATUS_LABELS, fmtDate } from "./bddTypes";
 import { printAccidentReport, printAccidentAct, printDriverExplanation } from "./bddPrint";
-import AccidentFormModal, { DocUploader } from "./BDDAccidentFormModal";
+import AccidentFormModal from "./BDDAccidentFormModal";
 
 // --------- Главный компонент BDDPage ---------
 export default function BDDPage() {
@@ -11,7 +11,7 @@ export default function BDDPage() {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Accident | null>(null);
-  const [expanded, setExpanded] = useState<number | null>(null);
+
   const [filterStatus, setFilterStatus] = useState("");
   const [filterOrg, setFilterOrg] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -99,7 +99,7 @@ export default function BDDPage() {
         </button>
       </div>
 
-      {/* Список ДТП */}
+      {/* Список ДТП — Excel-таблица */}
       {loading ? (
         <div className="text-sm text-neutral-400 text-center py-10">Загрузка...</div>
       ) : accidents.length === 0 ? (
@@ -108,121 +108,175 @@ export default function BDDPage() {
           ДТП не зарегистрировано
         </div>
       ) : (
-        <div className="space-y-2">
-          {accidents.map(a => {
-            const isOpen = expanded === a.id;
-            const statusInfo = STATUS_LABELS[a.status] || { label: a.status, color: "bg-neutral-100 text-neutral-600" };
-            return (
-              <div key={a.id} className="border border-neutral-200 rounded-xl overflow-hidden">
-                {/* Заголовок карточки */}
-                <div
-                  className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-neutral-50 transition-colors"
-                  onClick={() => setExpanded(isOpen ? null : a.id)}
-                >
-                  <div className="shrink-0">
-                    <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                      <Icon name="AlertTriangle" size={18} className="text-red-600" />
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-neutral-900">{fmtDate(a.accident_date)} {a.accident_time ? a.accident_time.slice(0, 5) : ""}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
-                      {a.victims_count ? <span className="text-xs text-red-600 font-medium">{a.victims_count} пострадавших</span> : null}
-                    </div>
-                    <div className="text-sm text-neutral-600 mt-0.5 flex flex-wrap gap-x-3">
-                      {a.location && <span><Icon name="MapPin" size={11} className="inline mr-0.5" />{a.location}</span>}
-                      {a.bus_board_number && <span>Борт {a.bus_board_number}</span>}
-                      {a.bus_gov_number && <span>{a.bus_gov_number}</span>}
-                      {a.driver_name && <span>{a.driver_name}</span>}
-                      {a.route_number && <span>Маршрут {a.route_number}</span>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {a.damage_amount && (
-                      <span className="text-sm font-semibold text-neutral-700">{a.damage_amount.toLocaleString("ru-RU")} ₽</span>
-                    )}
-                    <Icon name={isOpen ? "ChevronUp" : "ChevronDown"} size={16} className="text-neutral-400" />
-                  </div>
-                </div>
+        <div className="border border-neutral-200 rounded-xl overflow-hidden">
+          {/* Заголовок таблицы */}
+          <div className="flex items-center justify-between px-4 py-2 bg-neutral-800">
+            <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wide">
+              Реестр ДТП — {accidents.length} {accidents.length === 1 ? "запись" : accidents.length < 5 ? "записи" : "записей"}
+            </span>
+          </div>
 
-                {/* Раскрытый блок */}
-                {isOpen && (
-                  <div className="border-t border-neutral-100 px-5 py-4 bg-neutral-50">
-                    <div className="grid grid-cols-3 gap-4 text-sm mb-4">
-                      <div>
-                        <div className="text-xs text-neutral-500 mb-0.5">Погода</div>
-                        <div>{a.weather_conditions || "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-neutral-500 mb-0.5">Дорога</div>
-                        <div>{a.road_conditions || "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-neutral-500 mb-0.5">Видимость</div>
-                        <div>{a.visibility || "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-neutral-500 mb-0.5">Вина</div>
-                        <div>{a.fault_side || "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-neutral-500 mb-0.5">Ответственный</div>
-                        <div>{a.investigator_name || "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-neutral-500 mb-0.5">Ущерб</div>
-                        <div>{a.damage_amount ? a.damage_amount.toLocaleString("ru-RU") + " ₽" : "—"}</div>
-                      </div>
-                    </div>
-                    {a.description && (
-                      <div className="text-sm mb-3">
-                        <span className="text-xs text-neutral-500">Обстоятельства: </span>
-                        {a.description}
-                      </div>
-                    )}
-                    {a.investigation_result && (
-                      <div className="text-sm mb-3 p-2 bg-green-50 rounded-lg border border-green-200">
-                        <span className="text-xs text-green-600 font-medium">Заключение: </span>
-                        {a.investigation_result}
-                      </div>
-                    )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-neutral-800 text-neutral-200">
+                  <th className="px-2 py-2 text-center font-semibold whitespace-nowrap border-r border-neutral-700 w-8">№</th>
+                  <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[110px]">Дата / Время</th>
+                  <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[100px]">Статус</th>
+                  <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[60px]">Борт</th>
+                  <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[90px]">Гос. №</th>
+                  <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[130px]">Водитель</th>
+                  <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[80px]">Маршрут / Гр.</th>
+                  <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[160px]">Место ДТП</th>
+                  <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[90px]">Погода</th>
+                  <th className="px-2 py-2 text-center font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[70px]">Вина вод.</th>
+                  <th className="px-2 py-2 text-center font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[70px]">Пострад.</th>
+                  <th className="px-2 py-2 text-right font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[100px]">Ущерб ₽</th>
+                  <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[140px]">Примечание</th>
+                  <th className="px-2 py-2 text-center font-semibold whitespace-nowrap w-20">Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {accidents.map((a, idx) => {
+                  const statusInfo = STATUS_LABELS[a.status] || { label: a.status, color: "bg-neutral-100 text-neutral-600" };
+                  const isDriverFault = a.fault_side && a.fault_side.toLowerCase().includes("водит");
+                  return (
+                    <tr
+                      key={a.id}
+                      className={`group border-b border-neutral-100 cursor-pointer transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-neutral-50/50"} hover:bg-blue-50/60`}
+                      onClick={() => { setEditing(a); setShowForm(true); }}
+                    >
+                      {/* № */}
+                      <td className="px-2 py-2 text-center text-neutral-400 border-r border-neutral-100 font-mono">{idx + 1}</td>
 
-                    {/* Документы */}
-                    <DocUploader accident={a} onUpdated={updated => onSaved(updated)} />
+                      {/* Дата / Время */}
+                      <td className="px-2 py-2 border-r border-neutral-100 whitespace-nowrap">
+                        <div className="font-medium text-neutral-800">{fmtDate(a.accident_date)}</div>
+                        {a.accident_time && (
+                          <div className="text-neutral-400">{a.accident_time.slice(0, 5)}</div>
+                        )}
+                      </td>
 
-                    {/* Кнопки печати и действий */}
-                    <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-neutral-200">
-                      <button onClick={() => printAccidentReport(a)}
-                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer">
-                        <Icon name="Printer" size={12} /> Справка об обстоятельствах
-                      </button>
-                      <button onClick={() => printAccidentAct(a)}
-                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer">
-                        <Icon name="FileSignature" size={12} /> Акт о ДТП
-                      </button>
-                      <button onClick={() => printDriverExplanation(a)}
-                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer">
-                        <Icon name="PenLine" size={12} /> Объяснительная водителя
-                      </button>
-                      <div className="ml-auto flex gap-2">
-                        <button onClick={() => { setEditing(a); setShowForm(true); }}
-                          className="flex items-center gap-1 text-xs px-3 py-1.5 text-neutral-600 hover:text-neutral-900 cursor-pointer">
-                          <Icon name="Pencil" size={12} /> Редактировать
-                        </button>
-                        <button onClick={() => del(a.id)}
-                          className="flex items-center gap-1 text-xs px-3 py-1.5 text-red-500 hover:text-red-700 cursor-pointer">
-                          <Icon name="Trash2" size={12} /> Удалить
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                      {/* Статус */}
+                      <td className="px-2 py-2 border-r border-neutral-100">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold leading-tight ${statusInfo.color}`}>
+                          {statusInfo.label}
+                        </span>
+                      </td>
+
+                      {/* Борт */}
+                      <td className="px-2 py-2 border-r border-neutral-100 font-mono text-neutral-700">
+                        {a.bus_board_number || <span className="text-neutral-300">—</span>}
+                      </td>
+
+                      {/* Гос. № */}
+                      <td className="px-2 py-2 border-r border-neutral-100 font-mono text-neutral-700 whitespace-nowrap">
+                        {a.bus_gov_number || <span className="text-neutral-300">—</span>}
+                      </td>
+
+                      {/* Водитель */}
+                      <td className="px-2 py-2 border-r border-neutral-100 max-w-[130px] truncate" title={a.driver_name || ""}>
+                        {a.driver_name || <span className="text-neutral-300">—</span>}
+                      </td>
+
+                      {/* Маршрут / Гр. */}
+                      <td className="px-2 py-2 border-r border-neutral-100 text-center text-neutral-700">
+                        {a.route_number || <span className="text-neutral-300">—</span>}
+                      </td>
+
+                      {/* Место ДТП */}
+                      <td className="px-2 py-2 border-r border-neutral-100 max-w-[160px] truncate" title={a.location || ""}>
+                        {a.location
+                          ? <span className="text-neutral-700">{a.location}</span>
+                          : <span className="text-neutral-300">—</span>
+                        }
+                      </td>
+
+                      {/* Погода */}
+                      <td className="px-2 py-2 border-r border-neutral-100 text-neutral-600 truncate max-w-[90px]" title={a.weather_conditions || ""}>
+                        {a.weather_conditions || <span className="text-neutral-300">—</span>}
+                      </td>
+
+                      {/* Вина водителя */}
+                      <td className="px-2 py-2 border-r border-neutral-100 text-center">
+                        {a.fault_side
+                          ? <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${isDriverFault ? "bg-red-100 text-red-700" : "bg-neutral-100 text-neutral-500"}`}>
+                              {isDriverFault ? "Да" : "Нет"}
+                            </span>
+                          : <span className="text-neutral-300">—</span>
+                        }
+                      </td>
+
+                      {/* Пострадавших */}
+                      <td className="px-2 py-2 border-r border-neutral-100 text-center">
+                        {a.victims_count
+                          ? <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold text-[11px]">{a.victims_count}</span>
+                          : <span className="text-neutral-300">0</span>
+                        }
+                      </td>
+
+                      {/* Ущерб */}
+                      <td className="px-2 py-2 border-r border-neutral-100 text-right font-mono text-neutral-700 whitespace-nowrap">
+                        {a.damage_amount
+                          ? a.damage_amount.toLocaleString("ru-RU")
+                          : <span className="text-neutral-300">—</span>
+                        }
+                      </td>
+
+                      {/* Примечание */}
+                      <td className="px-2 py-2 border-r border-neutral-100 max-w-[140px] truncate text-neutral-500" title={a.notes || ""}>
+                        {a.notes || <span className="text-neutral-300">—</span>}
+                      </td>
+
+                      {/* Действия */}
+                      <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            title="Справка о ДТП"
+                            onClick={() => printAccidentReport(a)}
+                            className="p-1 rounded hover:bg-neutral-100 text-neutral-500 hover:text-neutral-800 cursor-pointer transition-colors"
+                          >
+                            <Icon name="Printer" size={13} />
+                          </button>
+                          <button
+                            title="Акт о ДТП"
+                            onClick={() => printAccidentAct(a)}
+                            className="p-1 rounded hover:bg-neutral-100 text-neutral-500 hover:text-neutral-800 cursor-pointer transition-colors"
+                          >
+                            <Icon name="FileSignature" size={13} />
+                          </button>
+                          <button
+                            title="Объяснительная"
+                            onClick={() => printDriverExplanation(a)}
+                            className="p-1 rounded hover:bg-neutral-100 text-neutral-500 hover:text-neutral-800 cursor-pointer transition-colors"
+                          >
+                            <Icon name="PenLine" size={13} />
+                          </button>
+                          <button
+                            title="Редактировать"
+                            onClick={() => { setEditing(a); setShowForm(true); }}
+                            className="p-1 rounded hover:bg-blue-100 text-blue-500 hover:text-blue-700 cursor-pointer transition-colors"
+                          >
+                            <Icon name="Pencil" size={13} />
+                          </button>
+                          <button
+                            title="Удалить"
+                            onClick={() => del(a.id)}
+                            className="p-1 rounded hover:bg-red-100 text-red-400 hover:text-red-600 cursor-pointer transition-colors"
+                          >
+                            <Icon name="Trash2" size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+
 
       {showForm && (
         <AccidentFormModal

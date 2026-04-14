@@ -575,7 +575,7 @@ export default function RepairPage() {
   const [showMoForm, setShowMoForm] = useState(false);
   const [editRepair, setEditRepair] = useState<RepairRecord|null>(null);
   const [editMo, setEditMo] = useState<MaintenanceRecord|null>(null);
-  const [expandedId, setExpandedId] = useState<number|null>(null);
+
   const [filterStatus, setFilterStatus] = useState("");
   const [filterBus, setFilterBus] = useState("");
 
@@ -634,7 +634,7 @@ export default function RepairPage() {
         <h1 className="text-xl font-bold text-neutral-900">Служба ремонта</h1>
         <div className="flex gap-1 bg-neutral-100 rounded-lg p-1">
           {(["repair","maintenance","mechanics"] as PageTab[]).map(t => (
-            <button key={t} onClick={() => { setTab(t); setExpandedId(null); }}
+            <button key={t} onClick={() => setTab(t)}
               className={`px-3 py-1.5 text-xs rounded-md transition-colors cursor-pointer ${tab===t ? "bg-white text-neutral-900 shadow-sm font-medium" : "text-neutral-500 hover:text-neutral-700"}`}>
               {t==="repair" ? "Журнал ремонта" : t==="maintenance" ? "Журнал ТО" : "Механики"}
             </button>
@@ -667,101 +667,101 @@ export default function RepairPage() {
           ) : repairs.length === 0 ? (
             <div className="text-sm text-neutral-400 text-center py-10">Записей нет</div>
           ) : (
-            <div className="space-y-2">
-              {repairs.map(r => {
-                const expanded = expandedId === r.id;
-                const partsTotal = (r.parts||[]).reduce((s,p) => s + Number(p.quantity)*Number(p.price_per_unit||0), 0);
-                return (
-                  <div key={r.id} className="border border-neutral-200 rounded-lg overflow-hidden">
-                    <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors"
-                      onClick={() => setExpandedId(expanded ? null : r.id)}>
-                      <span className={`text-xs px-2 py-0.5 rounded border font-medium ${SEVERITY_COLORS[r.severity]}`}>
-                        {SEVERITY_LABELS[r.severity]}
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${STATUS_COLORS[r.status]}`}>
-                        {STATUS_LABELS[r.status]}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold text-neutral-900">
-                            {r.board_number ? `Борт ${r.board_number}` : "ТС не указано"}
+            <div className="border border-neutral-200 rounded-xl overflow-hidden">
+              <div className="flex items-center px-4 py-2 bg-neutral-800">
+                <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wide">
+                  Журнал ремонта — {repairs.length} {repairs.length === 1 ? "запись" : repairs.length < 5 ? "записи" : "записей"}
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-800 text-neutral-200">
+                      <th className="px-2 py-2 text-center font-semibold whitespace-nowrap border-r border-neutral-700 w-8">№</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[90px]">Дата</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[60px]">Борт</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[90px]">Гос. №</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[180px]">Неисправность</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[110px]">Тип</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[90px]">Критичность</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[120px]">Исполнитель</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[90px]">Начало</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[90px]">Конец</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[90px]">Статус</th>
+                      <th className="px-2 py-2 text-right font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[100px]">Стоимость ₽</th>
+                      <th className="px-2 py-2 text-center font-semibold whitespace-nowrap w-16">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {repairs.map((r, idx) => (
+                      <tr
+                        key={r.id}
+                        className={`group border-b border-neutral-100 cursor-pointer transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-neutral-50/50"} hover:bg-blue-50/40`}
+                        onClick={() => { setEditRepair(r); setShowRepairForm(true); }}
+                      >
+                        <td className="px-2 py-2 text-center text-neutral-400 border-r border-neutral-100 font-mono">{idx + 1}</td>
+                        <td className="px-2 py-2 border-r border-neutral-100 whitespace-nowrap text-neutral-700 font-mono">{fmtDate(r.fault_date)}</td>
+                        <td className="px-2 py-2 border-r border-neutral-100 font-mono text-neutral-700">
+                          {r.board_number || <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 font-mono text-neutral-700 whitespace-nowrap">
+                          {r.gov_number || <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 max-w-[180px] truncate text-neutral-800" title={r.fault_description}>
+                          {r.fault_description}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 text-neutral-600 truncate max-w-[110px]" title={r.fault_type || ""}>
+                          {r.fault_type || <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-semibold leading-tight ${SEVERITY_COLORS[r.severity]}`}>
+                            {SEVERITY_LABELS[r.severity]}
                           </span>
-                          {r.fault_type && <span className="text-xs text-neutral-500">{r.fault_type}</span>}
-                        </div>
-                        <div className="text-xs text-neutral-500 truncate mt-0.5">{r.fault_description}</div>
-                      </div>
-                      <div className="text-right shrink-0 text-xs text-neutral-400">
-                        <div>{fmtDate(r.fault_date)}</div>
-                        {r.total_cost != null && <div className="font-semibold text-neutral-700">{fmt(r.total_cost)} ₽</div>}
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <button onClick={e=>{e.stopPropagation(); setEditRepair(r); setShowRepairForm(true);}}
-                          className="p-1.5 rounded hover:bg-neutral-200 cursor-pointer text-neutral-400 hover:text-neutral-700">
-                          <Icon name="Pencil" size={13}/>
-                        </button>
-                        <Icon name={expanded?"ChevronUp":"ChevronDown"} size={14} className="text-neutral-400"/>
-                      </div>
-                    </div>
-                    {expanded && (
-                      <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-4 space-y-4">
-                        <div className="grid grid-cols-2 gap-x-8 gap-y-1.5 text-sm">
-                          {r.executor_name && <div><span className="text-neutral-400">Исполнитель:</span> <span className="text-neutral-700">{r.executor_name}</span></div>}
-                          {r.controller_name && <div><span className="text-neutral-400">Контролёр:</span> <span className="text-neutral-700">{r.controller_name}</span></div>}
-                          {r.repair_start && <div><span className="text-neutral-400">Начало:</span> <span className="text-neutral-700">{fmtDate(r.repair_start)}</span></div>}
-                          {r.repair_end && <div><span className="text-neutral-400">Окончание:</span> <span className="text-neutral-700">{fmtDate(r.repair_end)}</span></div>}
-                          {r.notes && <div className="col-span-2"><span className="text-neutral-400">Примечание:</span> <span className="text-neutral-700">{r.notes}</span></div>}
-                        </div>
-                        {r.works && r.works.length > 0 && (
-                          <div>
-                            <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Виды работ</div>
-                            <div className="space-y-1">
-                              {r.works.map(w => (
-                                <div key={w.id} className="flex items-center gap-2 text-sm">
-                                  <Icon name={w.is_done ? "CheckCircle2" : "Circle"} size={14} className={w.is_done ? "text-green-500" : "text-neutral-300"} />
-                                  <span className={w.is_done ? "line-through text-neutral-400" : "text-neutral-700"}>{w.work_type}</span>
-                                  {w.executor_name && <span className="text-xs text-neutral-400">— {w.executor_name}</span>}
-                                  {w.hours_spent != null && <span className="text-xs text-neutral-400">{w.hours_spent} ч.</span>}
-                                </div>
-                              ))}
-                            </div>
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 max-w-[120px] truncate text-neutral-700" title={r.executor_name || ""}>
+                          {r.executor_name || <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 whitespace-nowrap text-neutral-600 font-mono">
+                          {r.repair_start ? fmtDate(r.repair_start) : <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 whitespace-nowrap text-neutral-600 font-mono">
+                          {r.repair_end ? fmtDate(r.repair_end) : <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold leading-tight ${STATUS_COLORS[r.status]}`}>
+                            {STATUS_LABELS[r.status]}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 text-right font-mono text-neutral-700 whitespace-nowrap">
+                          {r.total_cost != null ? fmt(r.total_cost) : <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              title="Редактировать"
+                              onClick={() => { setEditRepair(r); setShowRepairForm(true); }}
+                              className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-700 cursor-pointer transition-colors"
+                            >
+                              <Icon name="Pencil" size={13} />
+                            </button>
+                            <button
+                              title="Удалить"
+                              onClick={async () => {
+                                if (!confirm("Удалить запись?")) return;
+                                await api.deleteRepairJournal(r.id);
+                                loadRepairs();
+                              }}
+                              className="p-1 rounded hover:bg-red-100 text-red-400 hover:text-red-600 cursor-pointer transition-colors"
+                            >
+                              <Icon name="Trash2" size={13} />
+                            </button>
                           </div>
-                        )}
-                        {r.parts && r.parts.length > 0 && (
-                          <div>
-                            <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Запчасти и материалы</div>
-                            <table className="w-full text-xs border-collapse">
-                              <thead>
-                                <tr className="text-neutral-400 border-b border-neutral-200">
-                                  <th className="text-left py-1 font-medium">Наименование</th>
-                                  <th className="text-left py-1 font-medium">Арт.</th>
-                                  <th className="text-center py-1 font-medium">Кол-во</th>
-                                  <th className="text-right py-1 font-medium">Цена</th>
-                                  <th className="text-right py-1 font-medium">Сумма</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {r.parts.map(p => (
-                                  <tr key={p.id} className="border-b border-neutral-100">
-                                    <td className="py-1 text-neutral-700">{p.part_name}</td>
-                                    <td className="py-1 text-neutral-400">{p.part_number || "—"}</td>
-                                    <td className="py-1 text-center">{p.quantity} {p.unit}</td>
-                                    <td className="py-1 text-right">{p.price_per_unit != null ? fmt(p.price_per_unit) : "—"}</td>
-                                    <td className="py-1 text-right font-semibold">{p.price_per_unit != null ? fmt(Number(p.quantity)*Number(p.price_per_unit)) : "—"}</td>
-                                  </tr>
-                                ))}
-                                <tr className="font-semibold text-neutral-700">
-                                  <td colSpan={4} className="pt-1.5">Итого запчасти:</td>
-                                  <td className="pt-1.5 text-right">{fmt(partsTotal)} ₽</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </>
@@ -792,52 +792,98 @@ export default function RepairPage() {
           ) : maintenance.length === 0 ? (
             <div className="text-sm text-neutral-400 text-center py-10">Записей нет</div>
           ) : (
-            <div className="space-y-2">
-              {maintenance.map(m => {
-                const expanded = expandedId === m.id;
-                return (
-                  <div key={m.id} className="border border-neutral-200 rounded-lg overflow-hidden">
-                    <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-neutral-50 transition-colors"
-                      onClick={() => setExpandedId(expanded ? null : m.id)}>
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${MO_STATUS_COLORS[m.status]}`}>
-                        {MO_STATUS_LABELS[m.status]}
-                      </span>
-                      <span className="text-xs font-semibold bg-neutral-100 text-neutral-700 px-2 py-0.5 rounded">
-                        {MO_LABELS[m.maintenance_type] || m.maintenance_type}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-neutral-900">
-                          {m.board_number ? `Борт ${m.board_number}` : "ТС не указано"}
-                          {m.bus_model && <span className="text-neutral-400 font-normal ml-2 text-xs">{m.bus_model}</span>}
-                        </div>
-                        {m.executor_name && <div className="text-xs text-neutral-400 mt-0.5">Исполнитель: {m.executor_name}</div>}
-                      </div>
-                      <div className="text-right shrink-0 text-xs text-neutral-400">
-                        <div>план: {fmtDate(m.scheduled_date)}</div>
-                        {m.completed_date && <div className="text-green-600">факт: {fmtDate(m.completed_date)}</div>}
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <button onClick={e=>{e.stopPropagation(); setEditMo(m); setShowMoForm(true);}}
-                          className="p-1.5 rounded hover:bg-neutral-200 cursor-pointer text-neutral-400 hover:text-neutral-700">
-                          <Icon name="Pencil" size={13}/>
-                        </button>
-                        <Icon name={expanded?"ChevronUp":"ChevronDown"} size={14} className="text-neutral-400"/>
-                      </div>
-                    </div>
-                    {expanded && (
-                      <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 grid grid-cols-2 gap-x-8 gap-y-1.5 text-sm">
-                        {m.mileage_at_service != null && <div><span className="text-neutral-400">Пробег при ТО:</span> <span className="text-neutral-700">{m.mileage_at_service.toLocaleString("ru-RU")} км</span></div>}
-                        {m.next_service_mileage != null && <div><span className="text-neutral-400">Следующий ТО (км):</span> <span className="text-neutral-700">{m.next_service_mileage.toLocaleString("ru-RU")} км</span></div>}
-                        {m.next_service_date && <div><span className="text-neutral-400">Следующий ТО (дата):</span> <span className="text-neutral-700">{fmtDate(m.next_service_date)}</span></div>}
-                        {m.controller_name && <div><span className="text-neutral-400">Контролёр:</span> <span className="text-neutral-700">{m.controller_name}</span></div>}
-                        {m.total_cost != null && <div><span className="text-neutral-400">Стоимость:</span> <span className="text-neutral-700 font-semibold">{fmt(m.total_cost)} ₽</span></div>}
-                        {m.works_performed && <div className="col-span-2"><span className="text-neutral-400">Работы:</span> <span className="text-neutral-700">{m.works_performed}</span></div>}
-                        {m.notes && <div className="col-span-2"><span className="text-neutral-400">Примечание:</span> <span className="text-neutral-700">{m.notes}</span></div>}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="border border-neutral-200 rounded-xl overflow-hidden">
+              <div className="flex items-center px-4 py-2 bg-neutral-800">
+                <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wide">
+                  Журнал ТО — {maintenance.length} {maintenance.length === 1 ? "запись" : maintenance.length < 5 ? "записи" : "записей"}
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-800 text-neutral-200">
+                      <th className="px-2 py-2 text-center font-semibold whitespace-nowrap border-r border-neutral-700 w-8">№</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[60px]">Борт</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[90px]">Гос. №</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[100px]">Вид ТО</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[90px]">Дата план.</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[90px]">Дата факт.</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[100px]">Статус</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[130px]">Исполнитель</th>
+                      <th className="px-2 py-2 text-right font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[100px]">Стоимость ₽</th>
+                      <th className="px-2 py-2 text-left font-semibold whitespace-nowrap border-r border-neutral-700 min-w-[150px]">Примечание</th>
+                      <th className="px-2 py-2 text-center font-semibold whitespace-nowrap w-16">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {maintenance.map((m, idx) => (
+                      <tr
+                        key={m.id}
+                        className={`group border-b border-neutral-100 cursor-pointer transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-neutral-50/50"} hover:bg-blue-50/40`}
+                        onClick={() => { setEditMo(m); setShowMoForm(true); }}
+                      >
+                        <td className="px-2 py-2 text-center text-neutral-400 border-r border-neutral-100 font-mono">{idx + 1}</td>
+                        <td className="px-2 py-2 border-r border-neutral-100 font-mono text-neutral-700">
+                          {m.board_number || <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 font-mono text-neutral-700 whitespace-nowrap">
+                          {m.gov_number || <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 whitespace-nowrap">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 text-[10px] font-semibold">
+                            {MO_LABELS[m.maintenance_type] || m.maintenance_type}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 whitespace-nowrap font-mono text-neutral-700">
+                          {fmtDate(m.scheduled_date)}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 whitespace-nowrap font-mono">
+                          {m.completed_date
+                            ? <span className="text-green-700">{fmtDate(m.completed_date)}</span>
+                            : <span className="text-neutral-300">—</span>
+                          }
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold leading-tight ${MO_STATUS_COLORS[m.status]}`}>
+                            {MO_STATUS_LABELS[m.status]}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 max-w-[130px] truncate text-neutral-700" title={m.executor_name || ""}>
+                          {m.executor_name || <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 text-right font-mono text-neutral-700 whitespace-nowrap">
+                          {m.total_cost != null ? fmt(m.total_cost) : <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 border-r border-neutral-100 max-w-[150px] truncate text-neutral-500" title={m.notes || ""}>
+                          {m.notes || <span className="text-neutral-300">—</span>}
+                        </td>
+                        <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              title="Редактировать"
+                              onClick={() => { setEditMo(m); setShowMoForm(true); }}
+                              className="p-1 rounded hover:bg-blue-100 text-blue-400 hover:text-blue-700 cursor-pointer transition-colors"
+                            >
+                              <Icon name="Pencil" size={13} />
+                            </button>
+                            <button
+                              title="Удалить"
+                              onClick={async () => {
+                                if (!confirm("Удалить запись ТО?")) return;
+                                await api.deleteMaintenanceJournal(m.id);
+                                loadMaintenance();
+                              }}
+                              className="p-1 rounded hover:bg-red-100 text-red-400 hover:text-red-600 cursor-pointer transition-colors"
+                            >
+                              <Icon name="Trash2" size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </>
