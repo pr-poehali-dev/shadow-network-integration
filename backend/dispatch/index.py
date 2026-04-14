@@ -708,8 +708,8 @@ def handler(event: dict, context) -> dict:
                         return err("person_type and person_id required")
                     cur.execute("""
                         INSERT INTO crew_salary_records
-                            (person_type, person_id, year, month, sick_leave, advance_cash, advance_card, salary_card, overtime_sum, fines, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                            (person_type, person_id, year, month, sick_leave, advance_cash, advance_card, salary_card, overtime_sum, fines, cashless_payment, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                         ON CONFLICT (person_type, person_id, year, month) DO UPDATE SET
                             sick_leave = EXCLUDED.sick_leave,
                             advance_cash = EXCLUDED.advance_cash,
@@ -717,6 +717,7 @@ def handler(event: dict, context) -> dict:
                             salary_card = EXCLUDED.salary_card,
                             overtime_sum = EXCLUDED.overtime_sum,
                             fines = EXCLUDED.fines,
+                            cashless_payment = EXCLUDED.cashless_payment,
                             updated_at = NOW()
                         RETURNING *
                     """, (
@@ -727,6 +728,7 @@ def handler(event: dict, context) -> dict:
                         float(body.get("salary_card") or 0),
                         float(body.get("overtime_sum") or 0),
                         float(body.get("fines") or 0),
+                        float(body.get("cashless_payment") or 0),
                     ))
                     conn.commit()
                     return ok(dict(cur.fetchone()))
@@ -1509,7 +1511,7 @@ def handler(event: dict, context) -> dict:
                         return err("date required")
                     org = params.get("organization")
                     # Загружаем настройки (обед, дежурка, хознужды)
-                    cur.execute("SELECT key, value FROM settings WHERE key IN ('lunch_no_conductor','lunch_with_conductor','garage_daily_expenses','duty_car_shift_pay','duty_car_fuel_liters','fuel_price')")
+                    cur.execute("SELECT key, value FROM settings WHERE key IN ('lunch_no_conductor','lunch_with_conductor','garage_daily_expenses','duty_car_shift_pay','duty_car_fuel_liters','fuel_price','ticket_price')")
                     sett = {r["key"]: r["value"] for r in cur.fetchall()}
                     lunch_no_c = float(sett.get("lunch_no_conductor") or 150)
                     lunch_with_c = float(sett.get("lunch_with_conductor") or 300)
@@ -1517,6 +1519,7 @@ def handler(event: dict, context) -> dict:
                     duty_pay = float(sett.get("duty_car_shift_pay") or 0)
                     duty_fuel = float(sett.get("duty_car_fuel_liters") or 0)
                     fuel_price = float(sett.get("fuel_price") or 72)
+                    ticket_price = float(sett.get("ticket_price") or 35)
                     SEL_CASHIER = """
                         SELECT se.id as schedule_entry_id, se.graph_number, se.is_overtime,
                                se.tickets_sold, se.fuel_spent, se.revenue_cashless,
@@ -1529,7 +1532,7 @@ def handler(event: dict, context) -> dict:
                                cr.bills_200, cr.bills_100, cr.bills_50, cr.bills_10,
                                cr.coins_10, cr.coins_5, cr.coins_2, cr.coins_1,
                                COALESCE(cr.cashless_amount, se.revenue_cashless, 0) as cashless_amount,
-                               cr.fuel_cash_amount, cr.fuel_liters, cr.notes, cr.updated_at
+                               cr.fuel_cash_amount, cr.fuel_liters, cr.fuel_price_per_liter, cr.tickets_sold as cr_tickets_sold, cr.notes, cr.updated_at
                         FROM schedule_entries se
                         JOIN routes r ON r.id = se.route_id
                         LEFT JOIN buses b ON b.id = se.bus_id
@@ -1568,7 +1571,10 @@ def handler(event: dict, context) -> dict:
                         fuel_cash_val = float(d.get("fuel_cash_amount") or 0)
                         d["fuel_cost"] = fuel_cash_val if fuel_cash_val > 0 else round(fuel_liters_val * fuel_price, 2)
                         d["fuel_liters_total"] = fuel_liters_val
-                        # Подработка: флаг is_overtime, сумма вычисляется отдельно по ЗП
+                        d["fuel_price_per_liter"] = float(d.get("fuel_price_per_liter") or fuel_price)
+                        # Билеты: приоритет из cashier_reports, затем из schedule_entries
+                        if d.get("cr_tickets_sold") is not None:
+                            d["tickets_sold"] = d["cr_tickets_sold"]
                         result.append(d)
                     total_cash = sum(r["cash_total"] for r in result)
                     total_cashless = sum(float(r.get("cashless_amount") or 0) for r in result)
@@ -1585,6 +1591,7 @@ def handler(event: dict, context) -> dict:
                         "duty_car_fuel_liters": duty_fuel,
                         "duty_car_fuel_cost": round(duty_fuel * fuel_price, 2),
                         "fuel_price": fuel_price,
+                        "ticket_price": ticket_price,
                     })
 
                 if method == "POST":

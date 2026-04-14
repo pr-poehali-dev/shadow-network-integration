@@ -32,7 +32,7 @@ export default function SalaryPage() {
   const [itrForm, setItrForm] = useState({ full_name: "", position: "", base_salary: "", base_days: "" });
   const [itrFormSaving, setItrFormSaving] = useState(false);
 
-  const EMPTY_CREW = { sick_leave: "", advance_cash: "", advance_card: "", salary_card: "", overtime_sum: "", fines: "" };
+  const EMPTY_CREW = { sick_leave: "", advance_cash: "", advance_card: "", salary_card: "", overtime_sum: "", fines: "", cashless_payment: "" };
   const getCrewEdit = (key: string) => crewEdit[key] ?? EMPTY_CREW;
 
   const updateCrewField = (key: string, field: string, value: string) => {
@@ -56,6 +56,7 @@ export default function SalaryPage() {
           salary_card: String(rec.salary_card ?? ""),
           overtime_sum: String(rec.overtime_sum ?? ""),
           fines: String(rec.fines ?? ""),
+          cashless_payment: String(rec.cashless_payment ?? ""),
         };
       }
       setCrewEdit(edits);
@@ -130,6 +131,7 @@ export default function SalaryPage() {
       salary_card: Number(ed.salary_card) || 0,
       overtime_sum: Number(ed.overtime_sum) || 0,
       fines: Number(ed.fines) || 0,
+      cashless_payment: Number(ed.cashless_payment) || 0,
     });
     setCrewSaving(null);
   };

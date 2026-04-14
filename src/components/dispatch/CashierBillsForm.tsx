@@ -7,11 +7,13 @@ import { ScheduleRow, BILLS, fmt } from "./cashierTypes";
 interface BillsFormProps {
   row: ScheduleRow;
   date: string;
+  ticketPrice?: number;
+  fuelPriceDefault?: number;
   onSaved: () => void;
   onClose: () => void;
 }
 
-export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsFormProps) {
+export default function CashierBillsForm({ row, date, ticketPrice = 35, fuelPriceDefault = 72, onSaved, onClose }: BillsFormProps) {
   const { user } = useAuth();
   const [bills, setBills] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
@@ -25,17 +27,17 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
   // Топливо за наличку
   const [fuelCash, setFuelCash] = useState(String((row as Record<string,unknown>).fuel_cash_amount || ""));
   const [fuelLiters, setFuelLiters] = useState(String((row as Record<string,unknown>).fuel_liters || ""));
-  const [fuelPrice, setFuelPrice] = useState(String((row as Record<string,unknown>).fuel_price_per_liter || ""));
+  const [fuelPrice, setFuelPrice] = useState(String((row as Record<string,unknown>).fuel_price_per_liter || fuelPriceDefault || ""));
 
   const cashTotal = BILLS.reduce((s, b) => s + (bills[b.key] || 0) * b.value, 0);
-  // Авторасчёт суммы топлива по литрам и цене
   const autoFuelCash = (parseFloat(fuelLiters) || 0) * (parseFloat(fuelPrice) || 0);
+  const fuelCashFinal = fuelCash ? parseFloat(fuelCash) : autoFuelCash || 0;
+  const autoTickets = ticketPrice > 0 && cashTotal > 0 ? Math.floor(cashTotal / ticketPrice) : 0;
 
   async function save() {
     setSaving(true);
-    const fuelCashFinal = fuelCash ? parseFloat(fuelCash) : autoFuelCash || 0;
     const cashlessVal = parseFloat(cashless) || 0;
-    const ticketsNum = ticketsSold ? parseInt(ticketsSold) : null;
+    const ticketsNum = ticketsSold ? parseInt(ticketsSold) : (autoTickets > 0 ? autoTickets : null);
     await api.saveCashierReport({
       report_date: date,
       schedule_entry_id: row.schedule_entry_id,
@@ -57,13 +59,18 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
     });
     // Синхронизируем данные кассы в наряд
     if (row.schedule_entry_id) {
+      const fpVal = fuelPrice ? parseFloat(fuelPrice) : fuelPriceDefault;
+      let fuelLitersForSchedule: number | null = fuelLiters ? parseFloat(fuelLiters) : null;
+      if (!fuelLitersForSchedule && fuelCashFinal > 0 && fpVal > 0) {
+        fuelLitersForSchedule = Math.round((fuelCashFinal / fpVal) * 100) / 100;
+      }
       await api.patchScheduleRevenue({
         id: row.schedule_entry_id,
         revenue_cash: cashTotal,
         revenue_cashless: cashlessVal,
         revenue_total: cashTotal + cashlessVal,
-        fuel_spent: fuelCashFinal > 0 && fuelLiters ? parseFloat(fuelLiters) : null,
-        fuel_price_override: fuelPrice ? parseFloat(fuelPrice) : null,
+        fuel_spent: fuelLitersForSchedule,
+        fuel_price_override: fpVal,
         tickets_sold: ticketsNum,
       });
     }
@@ -211,15 +218,22 @@ export default function CashierBillsForm({ row, date, onSaved, onClose }: BillsF
           <div>
             <label className="block text-xs font-medium text-neutral-600 mb-1.5">
               Количество проданных билетов
+              {autoTickets > 0 && !ticketsSold && (
+                <span className="text-green-600 ml-1">(авто: {autoTickets} = {fmt(cashTotal)} ÷ {ticketPrice} ₽)</span>
+              )}
             </label>
             <input
               type="number" min="0" step="1"
               value={ticketsSold}
               onChange={e => setTicketsSold(e.target.value)}
-              placeholder="0"
+              placeholder={autoTickets > 0 ? String(autoTickets) : "0"}
               className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-neutral-500"
             />
-            <div className="text-xs text-neutral-400 mt-1">Отобразится в наряде у диспетчера</div>
+            <div className="text-xs text-neutral-400 mt-1">
+              {autoTickets > 0 && !ticketsSold
+                ? "Рассчитано из суммы НАЛ автоматически"
+                : "Отобразится в наряде у диспетчера"}
+            </div>
           </div>
 
           {/* Безнал */}

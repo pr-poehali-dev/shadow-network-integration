@@ -53,6 +53,7 @@ export interface CrewRecord {
   salary_card: string;
   overtime_sum: string;
   fines: string;
+  cashless_payment: string;
 }
 
 export interface ItrEmployee {
@@ -95,7 +96,8 @@ export function calcCrewTotal(r: CrewRecord): number {
   const salCard = Number(r.salary_card) || 0;
   const overtime = Number(r.overtime_sum) || 0;
   const fines = Number(r.fines) || 0;
-  return r.total_earned + sick + overtime - advCash - advCard - salCard - fines;
+  const cashless = Number(r.cashless_payment) || 0;
+  return r.total_earned + sick + overtime - advCash - advCard - salCard - fines - cashless;
 }
 
 export function printCrewStatement(
@@ -117,6 +119,7 @@ export function printCrewStatement(
         <td class="num">${r.salary_card ? fmt(Number(r.salary_card)) : "—"}</td>
         <td class="num">${r.overtime_sum ? fmt(Number(r.overtime_sum)) : "—"}</td>
         <td class="num">${r.fines ? fmt(Number(r.fines)) : "—"}</td>
+        <td class="num">${r.cashless_payment ? fmt(Number(r.cashless_payment)) : "—"}</td>
         <td class="num total ${total < 0 ? "neg" : ""}">${fmt(total)}</td>
         <td class="sign"></td>
       </tr>`;
@@ -159,6 +162,7 @@ export function printCrewStatement(
         <th>ЗП (карта), ₽</th>
         <th>Подработка, ₽</th>
         <th>Штрафы, ₽</th>
+        <th>Безнал, ₽</th>
         <th>Итого к выдаче, ₽</th>
         <th>Подпись</th>
       </tr>

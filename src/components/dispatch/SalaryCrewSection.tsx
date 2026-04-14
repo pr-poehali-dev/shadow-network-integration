@@ -49,9 +49,10 @@ export default function SalaryCrewSection({
       salaryCard: acc.salaryCard + (Number(ed.salary_card) || 0),
       overtimeSum: acc.overtimeSum + (Number(ed.overtime_sum) || 0),
       fines: acc.fines + (Number(ed.fines) || 0),
+      cashlessPayment: acc.cashlessPayment + (Number(ed.cashless_payment) || 0),
       toGet: acc.toGet + toGet,
     };
-  }, { earned: 0, shifts: 0, overtime: 0, sickLeave: 0, advanceCash: 0, advanceCard: 0, salaryCard: 0, overtimeSum: 0, fines: 0, toGet: 0 });
+  }, { earned: 0, shifts: 0, overtime: 0, sickLeave: 0, advanceCash: 0, advanceCard: 0, salaryCard: 0, overtimeSum: 0, fines: 0, cashlessPayment: 0, toGet: 0 });
 
   return (
     <div className="border border-neutral-200 rounded-xl overflow-hidden">
@@ -89,6 +90,7 @@ export default function SalaryCrewSection({
                 <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap bg-indigo-900/40">ЗП карта ₽</th>
                 <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap bg-indigo-900/40">Подработка ₽</th>
                 <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap bg-indigo-900/40">Штрафы ₽</th>
+                <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap bg-indigo-900/40">Безнал ₽</th>
                 <th className="px-2 py-2 text-right font-semibold border-r border-neutral-700 whitespace-nowrap bg-emerald-900/30">К выдаче ₽</th>
                 <th className="px-2 py-2 text-center font-semibold w-10">↓</th>
               </tr>
@@ -152,6 +154,11 @@ export default function SalaryCrewSection({
                         onChange={ev => updateCrewField(key, "fines", ev.target.value)}
                         className={cellInp} />
                     </td>
+                    <td className="px-2 py-1 border-r border-neutral-100 bg-indigo-50/30">
+                      <input type="number" min="0" step="0.01" value={ed.cashless_payment}
+                        onChange={ev => updateCrewField(key, "cashless_payment", ev.target.value)}
+                        className={cellInp} />
+                    </td>
                     <td className={`px-2 py-1.5 text-right border-r border-neutral-100 font-bold font-mono bg-emerald-50/50 whitespace-nowrap ${toGet < 0 ? "text-red-600" : "text-emerald-700"}`}>
                       {toGet < 0 ? "−" : ""}{fmt(Math.abs(toGet))}
                     </td>
@@ -178,6 +185,7 @@ export default function SalaryCrewSection({
                 <td className="px-2 py-2 text-center font-mono border-r border-neutral-700 whitespace-nowrap">{totals.salaryCard > 0 ? fmt(totals.salaryCard) : "—"}</td>
                 <td className="px-2 py-2 text-center font-mono border-r border-neutral-700 whitespace-nowrap">{totals.overtimeSum > 0 ? fmt(totals.overtimeSum) : "—"}</td>
                 <td className="px-2 py-2 text-center font-mono border-r border-neutral-700 whitespace-nowrap">{totals.fines > 0 ? fmt(totals.fines) : "—"}</td>
+                <td className="px-2 py-2 text-center font-mono border-r border-neutral-700 whitespace-nowrap">{totals.cashlessPayment > 0 ? fmt(totals.cashlessPayment) : "—"}</td>
                 <td className={`px-2 py-2 text-right font-mono border-r border-neutral-700 whitespace-nowrap ${totals.toGet < 0 ? "text-red-400" : "text-emerald-300"}`}>
                   {totals.toGet < 0 ? "−" : ""}{fmt(Math.abs(totals.toGet))}
                 </td>

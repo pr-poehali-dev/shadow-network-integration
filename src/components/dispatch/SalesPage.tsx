@@ -14,6 +14,8 @@ interface SalesRow {
   tickets_sold: number | null;
   fuel_spent: number | null;
   fuel_liters_total: number;
+  fuel_cash_amount: number;
+  fuel_price_per_liter: number | null;
   cashless_amount: number;
   cash_total: number;
   fuel_cost: number;
@@ -37,13 +39,28 @@ export default function SalesPage() {
   const [totalFuelLiters, setTotalFuelLiters] = useState(0);
   const [totalCashless, setTotalCashless] = useState(0);
 
+  const [fuelPrice, setFuelPrice] = useState(72);
+
+  const getFuelLiters = (r: SalesRow) => {
+    if (Number(r.fuel_liters_total) > 0) return Number(r.fuel_liters_total);
+    if (Number(r.fuel_spent) > 0) return Number(r.fuel_spent);
+    if (Number(r.fuel_cash_amount) > 0 && fuelPrice > 0) return Number(r.fuel_cash_amount) / fuelPrice;
+    return 0;
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     const data = await api.getCashierReport(date);
     const r: SalesRow[] = data.rows || [];
+    const fp = Number(data.fuel_price) || 72;
+    setFuelPrice(fp);
     setRows(r);
     setTotalTickets(r.reduce((s, row) => s + (Number(row.tickets_sold) || 0), 0));
-    setTotalFuelLiters(r.reduce((s, row) => s + (Number(row.fuel_liters_total) || Number(row.fuel_spent) || 0), 0));
+    setTotalFuelLiters(r.reduce((s, row) => {
+      let liters = Number(row.fuel_liters_total) || Number(row.fuel_spent) || 0;
+      if (!liters && Number(row.fuel_cash_amount) > 0 && fp > 0) liters = Number(row.fuel_cash_amount) / fp;
+      return s + liters;
+    }, 0));
     setTotalCashless(Number(data.total_cashless) || 0);
     setLoading(false);
   }, [date]);
@@ -65,7 +82,7 @@ export default function SalesPage() {
       filtered.map(r => {
         rowNum++;
         const crew = [r.driver_name, r.conductor_name].filter(Boolean).join(" / ");
-        const fuelVal = Number(r.fuel_liters_total) || Number(r.fuel_spent) || 0;
+        const fuelVal = getFuelLiters(r);
         const cashless = Number(r.cashless_amount) || 0;
         const hasFilled = r.report_id != null;
         return `<tr style="background:${rowNum % 2 === 0 ? "#f9fafb" : "#fff"};${!hasFilled ? "opacity:.45;" : ""}">
@@ -85,7 +102,7 @@ export default function SalesPage() {
       orgs.forEach(org => {
         const orgRows = allRows.filter(r => (r.organization || "") === org);
         const orgTickets = orgRows.reduce((s, r) => s + (Number(r.tickets_sold) || 0), 0);
-        const orgFuel = orgRows.reduce((s, r) => s + (Number(r.fuel_liters_total) || Number(r.fuel_spent) || 0), 0);
+        const orgFuel = orgRows.reduce((s, r) => s + getFuelLiters(r), 0);
         bodyRows += `<tr style="background:#e5e7eb;border-top:2px solid #9ca3af">
           <td colspan="8" style="padding:5px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151">
             ${org}
@@ -266,7 +283,7 @@ export default function SalesPage() {
                       rowNum++;
                       const crew = [r.driver_name, r.conductor_name].filter(Boolean).join(" / ");
                       const hasFilled = r.report_id != null;
-                      const fuelVal = Number(r.fuel_liters_total) || Number(r.fuel_spent) || 0;
+                      const fuelVal = getFuelLiters(r);
                       const cashless = Number(r.cashless_amount) || 0;
                       return (
                         <tr key={r.schedule_entry_id}
@@ -314,7 +331,7 @@ export default function SalesPage() {
                     orgs.forEach(org => {
                       const orgRows = allRows.filter(r => (r.organization || "") === org);
                       const orgTickets = orgRows.reduce((s, r) => s + (Number(r.tickets_sold) || 0), 0);
-                      const orgFuel = orgRows.reduce((s, r) => s + (Number(r.fuel_liters_total) || Number(r.fuel_spent) || 0), 0);
+                      const orgFuel = orgRows.reduce((s, r) => s + getFuelLiters(r), 0);
                       result.push(
                         <tr key={`org-${org}`} className="bg-neutral-200 border-t-2 border-neutral-400">
                           <td colSpan={9} className="px-3 py-1.5 text-xs font-bold text-neutral-700 uppercase tracking-wide">
