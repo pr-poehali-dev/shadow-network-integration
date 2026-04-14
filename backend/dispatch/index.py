@@ -923,6 +923,64 @@ def handler(event: dict, context) -> dict:
                     org = params.get("organization")
                     if not work_date:
                         return err("date required")
+                    # Авто-синхронизация: добавить недостающих водителей из наряда
+                    from datetime import datetime, timedelta
+                    sched_where = "se.work_date = %s AND d.id IS NOT NULL"
+                    sched_params = [work_date]
+                    if org:
+                        sched_where += " AND r.organization = %s"
+                        sched_params.append(org)
+                    cur.execute(f"""
+                        SELECT se.id, se.graph_number, r.id as route_id, r.number as route_number, r.organization,
+                               d.id as driver_id, d.full_name as driver_name
+                        FROM schedule_entries se
+                        JOIN routes r ON r.id = se.route_id
+                        LEFT JOIN drivers d ON d.id = se.driver_id
+                        WHERE {sched_where}
+                        ORDER BY r.organization, se.graph_number NULLS LAST
+                    """, sched_params)
+                    schedule = list(cur.fetchall())
+                    cur.execute("SELECT driver_id FROM medical_journal WHERE work_date = %s", (work_date,))
+                    existing = {r["driver_id"] for r in cur.fetchall() if r["driver_id"]}
+                    new_entries = [s for s in schedule if s["driver_id"] not in existing]
+                    if new_entries:
+                        base_time = datetime.strptime("06:00", "%H:%M")
+                        slot = len(existing)
+                        for row in new_entries:
+                            t = base_time + timedelta(minutes=5 * slot)
+                            slot += 1
+                            cur.execute("""
+                                INSERT INTO medical_journal
+                                    (work_date, organization, driver_id, driver_name, route_id, route_number, graph_number,
+                                     pre_shift_time, post_shift_time, pre_shift_admitted, post_shift_admitted)
+                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE,TRUE)
+                                ON CONFLICT DO NOTHING
+                            """, (work_date, row["organization"], row["driver_id"], row["driver_name"],
+                                  row["route_id"], row["route_number"], row["graph_number"],
+                                  t.strftime("%H:%M"), (t + timedelta(hours=9)).strftime("%H:%M")))
+                        conn.commit()
+                    # Синхронизируем ФИО/маршрут для существующих записей
+                    for s in schedule:
+                        if s["driver_id"] in existing:
+                            cur.execute("""
+                                UPDATE medical_journal SET driver_name=%s, route_number=%s, graph_number=%s
+                                WHERE work_date=%s AND driver_id=%s AND (driver_name IS DISTINCT FROM %s OR route_number IS DISTINCT FROM %s OR graph_number IS DISTINCT FROM %s)
+                            """, (s["driver_name"], s["route_number"], s["graph_number"],
+                                  work_date, s["driver_id"],
+                                  s["driver_name"], s["route_number"], s["graph_number"]))
+                    conn.commit()
+                    # Удаляем записи водителей, которых уже нет в наряде (только пустые, без заполненных данных медика)
+                    schedule_driver_ids = {s["driver_id"] for s in schedule}
+                    if existing - schedule_driver_ids:
+                        orphan_ids = list(existing - schedule_driver_ids)
+                        ph = ",".join(["%s"] * len(orphan_ids))
+                        cur.execute(f"""
+                            DELETE FROM medical_journal
+                            WHERE work_date = %s AND driver_id IN ({ph})
+                              AND medic_name IS NULL AND pre_shift_note IS NULL AND post_shift_note IS NULL
+                              AND blood_pressure_pre IS NULL AND pulse_pre IS NULL
+                        """, [work_date] + orphan_ids)
+                        conn.commit()
                     if org:
                         cur.execute(
                             "SELECT * FROM medical_journal WHERE work_date = %s AND organization = %s ORDER BY graph_number NULLS LAST, pre_shift_time NULLS LAST",
@@ -1101,6 +1159,72 @@ def handler(event: dict, context) -> dict:
                     org = params.get("organization")
                     if not work_date:
                         return err("date required")
+                    # Авто-синхронизация: добавить недостающие ТС из наряда
+                    sched_where = "se.work_date = %s"
+                    sched_params = [work_date]
+                    if org:
+                        sched_where += " AND r.organization = %s"
+                        sched_params.append(org)
+                    cur.execute(f"""
+                        SELECT se.id, se.graph_number, r.id as route_id, r.number as route_number, r.organization,
+                               b.board_number, b.gov_number, d.full_name as driver_name
+                        FROM schedule_entries se
+                        JOIN routes r ON r.id = se.route_id
+                        LEFT JOIN buses b ON b.id = se.bus_id
+                        LEFT JOIN drivers d ON d.id = se.driver_id
+                        WHERE {sched_where}
+                        ORDER BY r.organization, se.graph_number NULLS LAST
+                    """, sched_params)
+                    schedule = list(cur.fetchall())
+                    cur.execute("SELECT schedule_entry_id FROM vehicle_release_journal WHERE work_date = %s", (work_date,))
+                    existing_ids = {r["schedule_entry_id"] for r in cur.fetchall() if r["schedule_entry_id"]}
+                    schedule_ids = {s["id"] for s in schedule}
+                    new_entries = [s for s in schedule if s["id"] not in existing_ids]
+                    if new_entries:
+                        for row in new_entries:
+                            last_odo = None
+                            if row.get("board_number"):
+                                cur.execute("""
+                                    SELECT odometer_arrival FROM vehicle_release_journal
+                                    WHERE board_number = %s AND odometer_arrival IS NOT NULL
+                                    ORDER BY work_date DESC, id DESC LIMIT 1
+                                """, (row["board_number"],))
+                                prev = cur.fetchone()
+                                if prev:
+                                    last_odo = prev["odometer_arrival"]
+                            cur.execute("""
+                                INSERT INTO vehicle_release_journal
+                                    (work_date, organization, schedule_entry_id, route_id, route_number, graph_number,
+                                     board_number, gov_number, driver_name, odometer_departure)
+                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                ON CONFLICT DO NOTHING
+                            """, (work_date, row["organization"], row["id"], row["route_id"],
+                                  row["route_number"], row["graph_number"],
+                                  row["board_number"], row["gov_number"], row["driver_name"], last_odo))
+                        conn.commit()
+                    # Синхронизируем данные (водитель/борт) для существующих записей
+                    for s in schedule:
+                        if s["id"] in existing_ids:
+                            cur.execute("""
+                                UPDATE vehicle_release_journal
+                                SET driver_name=%s, board_number=%s, gov_number=%s, route_number=%s, graph_number=%s
+                                WHERE work_date=%s AND schedule_entry_id=%s
+                                  AND (driver_name IS DISTINCT FROM %s OR board_number IS DISTINCT FROM %s OR route_number IS DISTINCT FROM %s)
+                            """, (s["driver_name"], s["board_number"], s["gov_number"], s["route_number"], s["graph_number"],
+                                  work_date, s["id"],
+                                  s["driver_name"], s["board_number"], s["route_number"]))
+                    conn.commit()
+                    # Удаляем записи без данных для ТС, удалённых из наряда
+                    orphan_ids = list(existing_ids - schedule_ids)
+                    if orphan_ids:
+                        ph = ",".join(["%s"] * len(orphan_ids))
+                        cur.execute(f"""
+                            DELETE FROM vehicle_release_journal
+                            WHERE work_date = %s AND schedule_entry_id IN ({ph})
+                              AND mechanic_name IS NULL AND departure_time IS NULL AND arrival_time IS NULL
+                              AND odometer_arrival IS NULL AND notes IS NULL
+                        """, [work_date] + orphan_ids)
+                        conn.commit()
                     if org:
                         cur.execute(
                             "SELECT * FROM vehicle_release_journal WHERE work_date = %s AND organization = %s ORDER BY graph_number NULLS LAST",
