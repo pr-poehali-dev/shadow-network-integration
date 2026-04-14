@@ -2,12 +2,14 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth, AuthProvider, ROLE_LABELS, Role, TabId } from "@/lib/auth";
 import CatalogPage from "@/components/dispatch/CatalogPage";
+import DriversPage from "@/components/dispatch/DriversPage";
 import SchedulePage from "@/components/dispatch/SchedulePage";
 import SummaryPage from "@/components/dispatch/SummaryPage";
 import BusDocsPage from "@/components/dispatch/BusDocsPage";
 import RoutesPage from "@/components/dispatch/RoutesPage";
 import SettingsPage from "@/components/dispatch/SettingsPage";
 import UsersPage from "@/components/dispatch/UsersPage";
+import SalaryPage from "@/components/dispatch/SalaryPage";
 import LoginPage from "@/components/dispatch/LoginPage";
 import Icon from "@/components/ui/icon";
 
@@ -20,6 +22,7 @@ const allTabs: { id: TabId; label: string; icon: string }[] = [
   { id: "drivers",    label: "Водители",      icon: "User" },
   { id: "conductors", label: "Кондукторы",    icon: "Users" },
   { id: "terminals",  label: "Терминалы",     icon: "MonitorSmartphone" },
+  { id: "salary",     label: "Зарплата",      icon: "Banknote" },
   { id: "users",      label: "Пользователи",  icon: "Shield" },
   { id: "settings",   label: "Настройки",     icon: "Settings" },
 ];
@@ -105,30 +108,7 @@ function DispatchApp() {
             />
           )}
 
-          {currentTab === "drivers" && (
-            <CatalogPage
-              title="Водители"
-              fields={[
-                { key: "full_name", label: "ФИО", placeholder: "Фамилия Имя Отчество" },
-                { key: "phone", label: "Телефон", placeholder: "Номер телефона" },
-                { key: "birth_date", label: "Дата рождения", placeholder: "ГГГГ-ММ-ДД" },
-                { key: "snils", label: "СНИЛС", placeholder: "000-000-000 00" },
-                { key: "inn", label: "ИНН", placeholder: "ИНН" },
-                { key: "license_number", label: "Вод. удостоверение №", placeholder: "Серия и номер" },
-                { key: "license_date", label: "Дата выдачи ВУ", placeholder: "ГГГГ-ММ-ДД" },
-              ]}
-              fetchFn={api.getDrivers}
-              createFn={data => api.createDriver(data as { full_name: string })}
-              updateFn={(id, data) => api.updateDriver(id, data as { full_name: string })}
-              deleteFn={api.deleteDriver}
-              renderRow={item => (
-                <div className="flex items-center gap-3">
-                  <span className="text-neutral-900 font-medium">{String(item.full_name)}</span>
-                  {item.phone && <span className="text-neutral-500 text-xs">{String(item.phone)}</span>}
-                </div>
-              )}
-            />
-          )}
+          {currentTab === "drivers" && <DriversPage />}
 
           {currentTab === "conductors" && (
             <CatalogPage
@@ -174,6 +154,7 @@ function DispatchApp() {
             />
           )}
 
+          {currentTab === "salary" && <SalaryPage />}
           {currentTab === "users" && <UsersPage />}
           {currentTab === "settings" && <SettingsPage />}
         </main>

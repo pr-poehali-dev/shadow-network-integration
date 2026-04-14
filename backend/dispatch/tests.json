@@ -48,6 +48,20 @@
       "path": "/?resource=linereport",
       "expectedStatus": 400,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET itr_employees",
+      "method": "GET",
+      "path": "/?resource=itr_employees",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET driver_salary missing params",
+      "method": "GET",
+      "path": "/?resource=driver_salary",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
     }
   ]
 }

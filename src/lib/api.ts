@@ -79,8 +79,8 @@ export const api = {
 
   // Drivers
   getDrivers: () => req("GET", "drivers"),
-  createDriver: (data: { full_name: string }) => req("POST", "drivers", data),
-  updateDriver: (id: number, data: { full_name: string }) => req("PUT", "drivers", data, { id: String(id) }),
+  createDriver: (data: object) => req("POST", "drivers", data),
+  updateDriver: (id: number, data: object) => req("PUT", "drivers", data, { id: String(id) }),
   deleteDriver: (id: number) => req("DELETE", "drivers", undefined, { id: String(id) }),
 
   // Conductors
@@ -104,6 +104,17 @@ export const api = {
   saveRouteGraph: (data: object) => req("POST", "graphs", data),
   updateRouteGraph: (id: number, data: object) => req("PUT", "graphs", data, { id: String(id) }),
   deleteRouteGraph: (id: number) => req("DELETE", "graphs", undefined, { id: String(id) }),
+
+  // ITR
+  getItrEmployees: () => req("GET", "itr_employees"),
+  createItrEmployee: (data: object) => req("POST", "itr_employees", data),
+  updateItrEmployee: (id: number, data: object) => req("PUT", "itr_employees", data, { id: String(id) }),
+  deleteItrEmployee: (id: number) => req("DELETE", "itr_employees", undefined, { id: String(id) }),
+  getItrSalary: (year: number, month: number) => req("GET", "itr_salary", undefined, { year: String(year), month: String(month) }),
+  saveItrSalary: (data: object) => req("PUT", "itr_salary", data),
+
+  // Driver salary
+  getDriverSalary: (year: number, month: number) => req("GET", "driver_salary", undefined, { year: String(year), month: String(month) }),
 
   // Bus documents
   getBusDocs: (busId: number) => docsReq("GET", "docs", undefined, { bus_id: String(busId) }),

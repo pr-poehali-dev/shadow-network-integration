@@ -28,11 +28,14 @@ interface Entry {
   terminal_number: string | null;
   terminal_org: string | null;
   fuel_spent: number | null;
+  fuel_price_override: number | null;
   revenue_cash: number | null;
   revenue_cashless: number | null;
   revenue_total: number | null;
   ticket_price: number | null;
   tickets_sold: number | null;
+  is_overtime: boolean;
+  driver_is_official: boolean | null;
 }
 
 function today() {
@@ -199,11 +202,13 @@ export default function SchedulePage() {
       conductor_id: entry.conductor_id,
       terminal_id: entry.terminal_id,
       fuel_spent: entry.fuel_spent,
+      fuel_price_override: entry.fuel_price_override,
       revenue_cash: entry.revenue_cash,
       revenue_cashless: entry.revenue_cashless,
       revenue_total: entry.revenue_total,
       ticket_price: entry.ticket_price,
       tickets_sold: entry.tickets_sold,
+      is_overtime: entry.is_overtime,
       ...fields,
     });
     await loadSchedule(date);
@@ -336,6 +341,7 @@ export default function SchedulePage() {
                       <th className="px-4 py-2 text-left">Кондуктор</th>
                       <th className="px-4 py-2 text-left">Терминал</th>
                       <th className="px-4 py-2 text-right w-24">ДТ, л</th>
+                      <th className="px-4 py-2 text-center w-24">Подработка</th>
                       <th className="px-4 py-2 text-right w-28">Выручка</th>
                       <th className="px-4 py-2 w-10"></th>
                     </tr>
@@ -394,6 +400,18 @@ export default function SchedulePage() {
                           <td className="px-4 py-2">
                             <NumInput value={entry.fuel_spent} placeholder="л"
                               onSave={v => handleUpdate(entry, { fuel_spent: v ? Number(v) : null })} />
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            <button
+                              onClick={() => handleUpdate(entry, { is_overtime: !entry.is_overtime })}
+                              title="Подработка — водитель и кондуктор могут взять деньги"
+                              className={`w-8 h-8 rounded cursor-pointer transition-colors mx-auto flex items-center justify-center ${
+                                entry.is_overtime
+                                  ? "bg-amber-400 text-white hover:bg-amber-500"
+                                  : "border border-neutral-200 text-neutral-300 hover:border-amber-300 hover:text-amber-400"
+                              }`}>
+                              <Icon name="DollarSign" size={14} />
+                            </button>
                           </td>
                           <td className="px-4 py-2">
                             <button
@@ -469,7 +487,7 @@ export default function SchedulePage() {
                       const rFuel = items.reduce((s, e) => s + Number(e.fuel_spent ?? 0), 0);
                       return (
                         <tr className="bg-neutral-100 border-t border-neutral-200 font-semibold text-xs text-neutral-700">
-                          <td className="px-4 py-2" colSpan={8}>
+                          <td className="px-4 py-2" colSpan={9}>
                             <span className="inline-flex flex-wrap items-center gap-3">
                               <span>Итого м. {route.route_number}:</span>
                               {rTotal > 0 && <span>{Math.round(rTotal)} ₽</span>}

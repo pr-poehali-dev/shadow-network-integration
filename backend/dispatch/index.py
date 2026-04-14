@@ -197,19 +197,21 @@ def handler(event: dict, context) -> dict:
                     return ok(list(cur.fetchall()))
                 if method == "POST":
                     cur.execute(
-                        "INSERT INTO drivers (full_name, phone, birth_date, snils, inn, license_number, license_date) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *",
+                        "INSERT INTO drivers (full_name, phone, birth_date, snils, inn, license_number, license_date, is_official) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING *",
                         (body.get("full_name"), body.get("phone") or None, body.get("birth_date") or None,
                          body.get("snils") or None, body.get("inn") or None,
-                         body.get("license_number") or None, body.get("license_date") or None)
+                         body.get("license_number") or None, body.get("license_date") or None,
+                         body.get("is_official", True))
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
                 if method == "PUT":
                     cur.execute(
-                        "UPDATE drivers SET full_name=%s, phone=%s, birth_date=%s, snils=%s, inn=%s, license_number=%s, license_date=%s WHERE id=%s RETURNING *",
+                        "UPDATE drivers SET full_name=%s, phone=%s, birth_date=%s, snils=%s, inn=%s, license_number=%s, license_date=%s, is_official=%s WHERE id=%s RETURNING *",
                         (body.get("full_name"), body.get("phone") or None, body.get("birth_date") or None,
                          body.get("snils") or None, body.get("inn") or None,
-                         body.get("license_number") or None, body.get("license_date") or None, item_id)
+                         body.get("license_number") or None, body.get("license_date") or None,
+                         body.get("is_official", True), item_id)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
@@ -256,11 +258,12 @@ def handler(event: dict, context) -> dict:
                            r.organization as route_organization,
                            r.max_graphs,
                            b.id as bus_id, b.board_number, b.model as bus_model,
-                           d.id as driver_id, d.full_name as driver_name,
+                           d.id as driver_id, d.full_name as driver_name, d.is_official as driver_is_official,
                            c.id as conductor_id, c.full_name as conductor_name,
-                           se.fuel_spent,
+                           se.fuel_spent, se.fuel_price_override,
                            se.revenue_cash, se.revenue_cashless,
                            se.revenue_total, se.ticket_price, se.tickets_sold,
+                           se.is_overtime,
                            t.id as terminal_id, t.number as terminal_number,
                            t.name as terminal_name, t.organization as terminal_org
                     FROM schedule_entries se
@@ -283,8 +286,8 @@ def handler(event: dict, context) -> dict:
                 if method == "POST":
                     cur.execute("""
                         INSERT INTO schedule_entries (work_date, route_id, graph_number, bus_id, driver_id, conductor_id, terminal_id, fuel_spent,
-                          revenue_cash, revenue_cashless, revenue_total, ticket_price, tickets_sold)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+                          revenue_cash, revenue_cashless, revenue_total, ticket_price, tickets_sold, is_overtime, fuel_price_override)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
                     """, (
                         body.get("work_date"),
                         body.get("route_id"),
@@ -299,6 +302,8 @@ def handler(event: dict, context) -> dict:
                         body.get("revenue_total") or None,
                         body.get("ticket_price") or None,
                         body.get("tickets_sold") or None,
+                        body.get("is_overtime", False),
+                        body.get("fuel_price_override") or None,
                     ))
                     conn.commit()
                     new_id = cur.fetchone()["id"]
@@ -309,7 +314,8 @@ def handler(event: dict, context) -> dict:
                     cur.execute("""
                         UPDATE schedule_entries
                         SET bus_id=%s, driver_id=%s, conductor_id=%s, graph_number=%s, terminal_id=%s, fuel_spent=%s,
-                            revenue_cash=%s, revenue_cashless=%s, revenue_total=%s, ticket_price=%s, tickets_sold=%s
+                            revenue_cash=%s, revenue_cashless=%s, revenue_total=%s, ticket_price=%s, tickets_sold=%s,
+                            is_overtime=%s, fuel_price_override=%s
                         WHERE id=%s
                     """, (
                         body.get("bus_id") or None,
@@ -323,6 +329,8 @@ def handler(event: dict, context) -> dict:
                         body.get("revenue_total") or None,
                         body.get("ticket_price") or None,
                         body.get("tickets_sold") or None,
+                        body.get("is_overtime", False),
+                        body.get("fuel_price_override") or None,
                         body.get("id")
                     ))
                     conn.commit()
@@ -515,5 +523,170 @@ def handler(event: dict, context) -> dict:
                 totals = dict(cur.fetchone())
 
                 return ok({"drivers": drivers, "conductors": conductors, "buses": buses, "totals": totals})
+
+    # --- ITR EMPLOYEES ---
+    if resource == "itr_employees":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    cur.execute("SELECT * FROM itr_employees ORDER BY position, full_name")
+                    return ok(list(cur.fetchall()))
+                if method == "POST":
+                    cur.execute(
+                        "INSERT INTO itr_employees (full_name, position, base_salary, base_days, is_active) VALUES (%s, %s, %s, %s, %s) RETURNING *",
+                        (body.get("full_name"), body.get("position"), float(body.get("base_salary", 0)),
+                         int(body.get("base_days", 23)), body.get("is_active", True))
+                    )
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "PUT":
+                    cur.execute(
+                        "UPDATE itr_employees SET full_name=%s, position=%s, base_salary=%s, base_days=%s, is_active=%s WHERE id=%s RETURNING *",
+                        (body.get("full_name"), body.get("position"), float(body.get("base_salary", 0)),
+                         int(body.get("base_days", 23)), body.get("is_active", True), item_id)
+                    )
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "DELETE":
+                    cur.execute("DELETE FROM itr_employees WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- ITR SALARY RECORDS ---
+    if resource == "itr_salary":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    year = params.get("year")
+                    month = params.get("month")
+                    if not year or not month:
+                        return err("year and month required")
+                    cur.execute("""
+                        SELECT e.*, r.id as record_id, r.days_worked, r.bonus,
+                               r.advance_paid, r.salary_paid, r.note,
+                               r.year, r.month
+                        FROM itr_employees e
+                        LEFT JOIN itr_salary_records r
+                            ON r.employee_id = e.id AND r.year = %s AND r.month = %s
+                        WHERE e.is_active = true
+                        ORDER BY e.position, e.full_name
+                    """, (int(year), int(month)))
+                    return ok(list(cur.fetchall()))
+                if method == "PUT":
+                    emp_id = body.get("employee_id")
+                    year = int(body.get("year", 0))
+                    month = int(body.get("month", 0))
+                    if not emp_id or not year or not month:
+                        return err("employee_id, year, month required")
+                    cur.execute("""
+                        INSERT INTO itr_salary_records (employee_id, year, month, days_worked, bonus, advance_paid, salary_paid, note)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (employee_id, year, month) DO UPDATE SET
+                            days_worked = EXCLUDED.days_worked,
+                            bonus = EXCLUDED.bonus,
+                            advance_paid = EXCLUDED.advance_paid,
+                            salary_paid = EXCLUDED.salary_paid,
+                            note = EXCLUDED.note
+                        RETURNING *
+                    """, (
+                        emp_id, year, month,
+                        int(body.get("days_worked", 0)),
+                        float(body.get("bonus", 0)),
+                        float(body.get("advance_paid", 0)),
+                        float(body.get("salary_paid", 0)),
+                        body.get("note") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+    # --- DRIVER SALARY: зарплата водителей и кондукторов за период ---
+    if resource == "driver_salary":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                year = params.get("year")
+                month = params.get("month")
+                if not year or not month:
+                    return err("year and month required")
+                fuel_price_default = 0
+                cur.execute("SELECT value FROM settings WHERE key = 'fuel_price'")
+                row = cur.fetchone()
+                if row:
+                    fuel_price_default = float(row["value"] or 0)
+
+                cur.execute("""
+                    SELECT
+                        se.id, se.work_date, se.graph_number,
+                        r.number as route_number, r.name as route_name,
+                        d.id as driver_id, d.full_name as driver_name, d.is_official as driver_is_official,
+                        c.id as conductor_id, c.full_name as conductor_name,
+                        se.revenue_cash, se.revenue_cashless, se.revenue_total,
+                        se.fuel_spent, se.fuel_price_override, se.is_overtime
+                    FROM schedule_entries se
+                    JOIN routes r ON r.id = se.route_id
+                    LEFT JOIN drivers d ON d.id = se.driver_id
+                    LEFT JOIN conductors c ON c.id = se.conductor_id
+                    WHERE EXTRACT(YEAR FROM se.work_date) = %s
+                      AND EXTRACT(MONTH FROM se.work_date) = %s
+                    ORDER BY se.work_date, r.number
+                """, (year, month))
+                entries = list(cur.fetchall())
+
+                ROUTE6_FIXED = 7000.0
+                LUNCH = 150.0
+
+                driver_map = {}
+                conductor_map = {}
+
+                for e in entries:
+                    total = float(e.get("revenue_total") or 0) or (float(e.get("revenue_cash") or 0) + float(e.get("revenue_cashless") or 0))
+                    fuel_price = float(e.get("fuel_price_override") or fuel_price_default)
+                    fuel_cost = float(e.get("fuel_spent") or 0) * fuel_price
+                    has_conductor = e.get("conductor_id") is not None
+                    is_route6 = e.get("route_number") == "6"
+
+                    # --- Водитель ---
+                    if e.get("driver_id"):
+                        did = e["driver_id"]
+                        if did not in driver_map:
+                            driver_map[did] = {"id": did, "full_name": e["driver_name"], "is_official": e["driver_is_official"], "shifts": [], "total_earned": 0}
+                        if is_route6:
+                            earned = ROUTE6_FIXED
+                        elif has_conductor:
+                            earned = total * 0.25 - LUNCH - fuel_cost
+                        else:
+                            earned = total * 0.37 - LUNCH - fuel_cost
+                        driver_map[did]["shifts"].append({
+                            "date": str(e["work_date"]),
+                            "route": e["route_number"],
+                            "total": total,
+                            "fuel_cost": fuel_cost,
+                            "earned": round(earned, 2),
+                            "is_overtime": e["is_overtime"],
+                        })
+                        driver_map[did]["total_earned"] = round(driver_map[did]["total_earned"] + earned, 2)
+
+                    # --- Кондуктор ---
+                    if e.get("conductor_id"):
+                        cid = e["conductor_id"]
+                        if cid not in conductor_map:
+                            conductor_map[cid] = {"id": cid, "full_name": e["conductor_name"], "shifts": [], "total_earned": 0}
+                        if is_route6:
+                            c_earned = 0
+                        else:
+                            c_earned = total * 0.15
+                        conductor_map[cid]["shifts"].append({
+                            "date": str(e["work_date"]),
+                            "route": e["route_number"],
+                            "total": total,
+                            "earned": round(c_earned, 2),
+                            "is_overtime": e["is_overtime"],
+                        })
+                        conductor_map[cid]["total_earned"] = round(conductor_map[cid]["total_earned"] + c_earned, 2)
+
+                return ok({
+                    "drivers": list(driver_map.values()),
+                    "conductors": list(conductor_map.values()),
+                    "fuel_price": fuel_price_default,
+                })
 
     return err("Not found", 404)
