@@ -33,6 +33,8 @@ export interface Entry {
   tickets_sold: number | null;
   is_overtime: boolean;
   driver_is_official: boolean | null;
+  absence_reason: string | null;
+  absence_fine: number | null;
 }
 
 export function today() {

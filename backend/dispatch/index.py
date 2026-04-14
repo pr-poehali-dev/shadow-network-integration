@@ -278,6 +278,7 @@ def handler(event: dict, context) -> dict:
                            se.revenue_cash, se.revenue_cashless,
                            se.revenue_total, se.ticket_price, se.tickets_sold,
                            se.is_overtime,
+                           se.absence_reason, se.absence_fine,
                            t.id as terminal_id, t.number as terminal_number,
                            t.name as terminal_name, t.organization as terminal_org
                     FROM schedule_entries se
@@ -297,11 +298,18 @@ def handler(event: dict, context) -> dict:
                     """, (date,))
                     return ok(list(cur.fetchall()))
 
+                ALCOHOL_FINE = 5000.0
+
                 if method == "POST":
+                    absence_reason = body.get("absence_reason") or None
+                    absence_fine = ALCOHOL_FINE if absence_reason == "alcohol" else (
+                        float(body.get("absence_fine")) if body.get("absence_fine") else None
+                    )
                     cur.execute("""
                         INSERT INTO schedule_entries (work_date, route_id, graph_number, bus_id, driver_id, conductor_id, terminal_id, fuel_spent,
-                          revenue_cash, revenue_cashless, revenue_total, ticket_price, tickets_sold, is_overtime, fuel_price_override)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+                          revenue_cashless, revenue_total, ticket_price, tickets_sold, is_overtime, fuel_price_override,
+                          absence_reason, absence_fine)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
                     """, (
                         body.get("work_date"),
                         body.get("route_id"),
@@ -311,13 +319,14 @@ def handler(event: dict, context) -> dict:
                         body.get("conductor_id") or None,
                         body.get("terminal_id") or None,
                         body.get("fuel_spent") or None,
-                        body.get("revenue_cash") or None,
                         body.get("revenue_cashless") or None,
-                        body.get("revenue_total") or None,
+                        body.get("revenue_cashless") or None,  # total = cashless only
                         body.get("ticket_price") or None,
                         body.get("tickets_sold") or None,
                         body.get("is_overtime", False),
                         body.get("fuel_price_override") or None,
+                        absence_reason,
+                        absence_fine,
                     ))
                     conn.commit()
                     new_id = cur.fetchone()["id"]
@@ -325,11 +334,45 @@ def handler(event: dict, context) -> dict:
                     return ok(dict(cur.fetchone()))
 
                 if method == "PUT":
+                    entry_id = body.get("id")
+                    absence_reason = body.get("absence_reason") or None
+                    # Автоштраф при алкотестере
+                    if absence_reason == "alcohol":
+                        absence_fine = ALCOHOL_FINE
+                    elif absence_reason is not None and body.get("absence_fine") is not None:
+                        absence_fine = float(body.get("absence_fine"))
+                    elif absence_reason is None:
+                        absence_fine = None
+                    else:
+                        absence_fine = None
+
+                    # Если это штраф за алкоголь — автоматически фиксируем в crew_salary
+                    if absence_reason == "alcohol":
+                        cur.execute("SELECT work_date, driver_id, conductor_id FROM schedule_entries WHERE id=%s", (entry_id,))
+                        se_row = cur.fetchone()
+                        if se_row:
+                            import datetime as _dt
+                            wd = se_row["work_date"]
+                            y_m = (wd.year, wd.month) if hasattr(wd, "year") else (int(str(wd)[:4]), int(str(wd)[5:7]))
+                            # Применяем штраф к водителю
+                            for pid, ptype in [(se_row["driver_id"],"driver"),(se_row["conductor_id"],"conductor")]:
+                                if pid:
+                                    cur.execute("""
+                                        INSERT INTO crew_salary_records
+                                            (person_type, person_id, year, month, fines, updated_at)
+                                        VALUES (%s, %s, %s, %s, %s, NOW())
+                                        ON CONFLICT (person_type, person_id, year, month) DO UPDATE SET
+                                            fines = COALESCE(crew_salary_records.fines, 0) + %s,
+                                            updated_at = NOW()
+                                    """, (ptype, pid, y_m[0], y_m[1], ALCOHOL_FINE, ALCOHOL_FINE))
+
+                    cashless = body.get("revenue_cashless") or None
                     cur.execute("""
                         UPDATE schedule_entries
                         SET bus_id=%s, driver_id=%s, conductor_id=%s, graph_number=%s, terminal_id=%s, fuel_spent=%s,
-                            revenue_cash=%s, revenue_cashless=%s, revenue_total=%s, ticket_price=%s, tickets_sold=%s,
-                            is_overtime=%s, fuel_price_override=%s
+                            revenue_cash=NULL, revenue_cashless=%s, revenue_total=%s, ticket_price=%s, tickets_sold=%s,
+                            is_overtime=%s, fuel_price_override=%s,
+                            absence_reason=%s, absence_fine=%s
                         WHERE id=%s
                     """, (
                         body.get("bus_id") or None,
@@ -338,17 +381,18 @@ def handler(event: dict, context) -> dict:
                         body.get("graph_number") or None,
                         body.get("terminal_id") or None,
                         body.get("fuel_spent") or None,
-                        body.get("revenue_cash") or None,
-                        body.get("revenue_cashless") or None,
-                        body.get("revenue_total") or None,
+                        cashless,
+                        cashless,  # total = cashless
                         body.get("ticket_price") or None,
                         body.get("tickets_sold") or None,
                         body.get("is_overtime", False),
                         body.get("fuel_price_override") or None,
-                        body.get("id")
+                        absence_reason,
+                        absence_fine,
+                        entry_id,
                     ))
                     conn.commit()
-                    cur.execute(SEL + " WHERE se.id = %s", (body.get("id"),))
+                    cur.execute(SEL + " WHERE se.id = %s", (entry_id,))
                     return ok(dict(cur.fetchone()))
 
                 if method == "DELETE":

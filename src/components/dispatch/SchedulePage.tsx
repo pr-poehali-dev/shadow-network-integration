@@ -106,12 +106,13 @@ export default function SchedulePage() {
       terminal_id: merged.terminal_id,
       fuel_spent: merged.fuel_spent,
       fuel_price_override: merged.fuel_price_override,
-      revenue_cash: merged.revenue_cash,
       revenue_cashless: merged.revenue_cashless,
-      revenue_total: merged.revenue_total,
+      revenue_total: merged.revenue_cashless,
       ticket_price: merged.ticket_price,
       tickets_sold: merged.tickets_sold,
       is_overtime: merged.is_overtime,
+      absence_reason: merged.absence_reason,
+      absence_fine: merged.absence_fine,
     });
     // Для selects (водитель/автобус/кондуктор/терминал) нужно подтянуть имена — рефрешим
     if ("bus_id" in fields || "driver_id" in fields || "conductor_id" in fields || "terminal_id" in fields) {
@@ -158,22 +159,17 @@ export default function SchedulePage() {
     return result;
   }, [entries]);
 
-  const calcEntryTotal = useCallback((e: Entry) =>
-    Number(e.revenue_total) || ((Number(e.revenue_cash ?? 0) + Number(e.revenue_cashless ?? 0)) || 0),
-  []);
-
+  const calcEntryTotal = useCallback((e: Entry) => Number(e.revenue_cashless ?? 0), []);
   const calcEntryTickets = useCallback((e: Entry) => {
     const t = calcEntryTotal(e);
     return t ? Math.floor(t / ticketPrice) : 0;
   }, [calcEntryTotal, ticketPrice]);
 
-  const { dayTotalCash, dayTotalCashless, dayTotalRevenue, dayTotalTickets, dayTotalFuel } = useMemo(() => ({
-    dayTotalCash: entries.reduce((s, e) => s + Number(e.revenue_cash ?? 0), 0),
+  const { dayTotalCashless, dayTotalFuel, dayAbsences } = useMemo(() => ({
     dayTotalCashless: entries.reduce((s, e) => s + Number(e.revenue_cashless ?? 0), 0),
-    dayTotalRevenue: entries.reduce((s, e) => s + (Number(e.revenue_total) || Number(e.revenue_cash ?? 0) + Number(e.revenue_cashless ?? 0)), 0),
-    dayTotalTickets: entries.reduce((s, e) => s + (Number(e.revenue_total) || Number(e.revenue_cash ?? 0) + Number(e.revenue_cashless ?? 0) ? Math.floor((Number(e.revenue_total) || Number(e.revenue_cash ?? 0) + Number(e.revenue_cashless ?? 0)) / ticketPrice) : 0), 0),
     dayTotalFuel: entries.reduce((s, e) => s + Number(e.fuel_spent ?? 0), 0),
-  }), [entries, ticketPrice]);
+    dayAbsences: entries.filter(e => e.absence_reason).length,
+  }), [entries]);
 
   // Семь дней недели начиная с понедельника текущей недели (относительно выбранной даты)
   const weekDays = useMemo(() => {
@@ -329,11 +325,13 @@ export default function SchedulePage() {
           {entries.length > 0 && (
             <div className="border border-neutral-300 rounded bg-neutral-900 text-white px-5 py-3 flex flex-wrap items-center gap-4 text-sm">
               <span className="font-bold uppercase tracking-wide">Итого за день:</span>
-              {dayTotalRevenue > 0 && <span className="text-lg font-bold">{Math.round(dayTotalRevenue)} ₽</span>}
-              {dayTotalCash > 0 && <span>нал. {Math.round(dayTotalCash)} ₽</span>}
-              {dayTotalCashless > 0 && <span>безнал. {Math.round(dayTotalCashless)} ₽</span>}
-              {dayTotalTickets > 0 && <span>{dayTotalTickets} бил.</span>}
+              {dayTotalCashless > 0 && <span className="text-lg font-bold">безнал. {Math.round(dayTotalCashless)} ₽</span>}
               {dayTotalFuel > 0 && <span>{dayTotalFuel.toFixed(1)} л</span>}
+              {dayAbsences > 0 && (
+                <span className="bg-red-500 text-white px-2 py-0.5 rounded text-xs font-semibold">
+                  неявок: {dayAbsences}
+                </span>
+              )}
             </div>
           )}
         </div>

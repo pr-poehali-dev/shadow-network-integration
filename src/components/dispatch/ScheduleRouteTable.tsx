@@ -48,8 +48,9 @@ export default function ScheduleRouteTable({
             <th className="px-4 py-2 text-left">Кондуктор</th>
             <th className="px-4 py-2 text-left">Терминал</th>
             <th className="px-4 py-2 text-right w-24">ДТ, л</th>
-            <th className="px-4 py-2 text-center w-24">Подработка</th>
-            <th className="px-4 py-2 text-right w-28">Выручка</th>
+            <th className="px-4 py-2 text-center w-20">Подработка</th>
+            <th className="px-4 py-2 text-left w-36">Неявка</th>
+            <th className="px-4 py-2 text-right w-28">Безнал, ₽</th>
             <th className="px-4 py-2 w-10"></th>
           </tr>
         </thead>
@@ -72,21 +73,17 @@ export default function ScheduleRouteTable({
             />
           ))}
           {items.length > 1 && (() => {
-            const rCash = items.reduce((s, e) => s + Number(e.revenue_cash ?? 0), 0);
             const rCashless = items.reduce((s, e) => s + Number(e.revenue_cashless ?? 0), 0);
-            const rTotal = items.reduce((s, e) => s + calcEntryTotal(e), 0);
-            const rTickets = items.reduce((s, e) => s + calcEntryTickets(e), 0);
             const rFuel = items.reduce((s, e) => s + Number(e.fuel_spent ?? 0), 0);
+            const absences = items.filter(e => e.absence_reason).length;
             return (
               <tr className="bg-neutral-100 border-t border-neutral-200 font-semibold text-xs text-neutral-700">
-                <td className="px-4 py-2" colSpan={9}>
+                <td className="px-4 py-2" colSpan={10}>
                   <span className="inline-flex flex-wrap items-center gap-3">
                     <span>Итого м. {routeNumber}:</span>
-                    {rTotal > 0 && <span>{Math.round(rTotal)} ₽</span>}
-                    {rCash > 0 && <span className="font-normal text-neutral-500">нал. {Math.round(rCash)} ₽</span>}
-                    {rCashless > 0 && <span className="font-normal text-neutral-500">безнал. {Math.round(rCashless)} ₽</span>}
-                    {rTickets > 0 && <span>{rTickets} бил.</span>}
+                    {rCashless > 0 && <span>безнал. {Math.round(rCashless)} ₽</span>}
                     {rFuel > 0 && <span className="font-normal text-neutral-500">{rFuel.toFixed(1)} л</span>}
+                    {absences > 0 && <span className="text-red-600">неявок: {absences}</span>}
                   </span>
                 </td>
               </tr>
