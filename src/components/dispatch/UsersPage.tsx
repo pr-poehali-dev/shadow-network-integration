@@ -13,7 +13,7 @@ interface UserRow {
   created_at: string;
 }
 
-const ROLES: Role[] = ["admin", "dispatcher", "mechanic", "hr", "accountant"];
+const ROLES: Role[] = ["admin", "dispatcher", "mechanic", "hr", "accountant", "cashier"];
 const EDITABLE_TABS = ALL_TABS.filter(t => t.id !== "users" && t.id !== "settings");
 
 export default function UsersPage() {
