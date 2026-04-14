@@ -93,6 +93,7 @@ export default function ScheduleRouteTable({
             <th className="px-4 py-2 text-left">Терминал</th>
             <th className="px-4 py-2 text-center w-20">Подработка</th>
             <th className="px-4 py-2 text-left w-36">Неявка</th>
+            <th className="px-4 py-2 text-center w-20">Билеты</th>
             <th className="px-4 py-2 w-10"></th>
           </tr>
         </thead>
