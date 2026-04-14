@@ -711,16 +711,17 @@ def handler(event: dict, context) -> dict:
                 date_to2 = f"{y2:04d}-{m2:02d}-{last_day2:02d}"
 
                 # Загружаем все нужные настройки одним запросом
-                cur.execute("SELECT key, value FROM settings WHERE key IN ('fuel_price','ticket_price','driver_pct_no_conductor','driver_pct_with_conductor','conductor_pct')")
+                cur.execute("SELECT key, value FROM settings WHERE key IN ('fuel_price','ticket_price','driver_pct_no_conductor','driver_pct_with_conductor','conductor_pct','route6_fixed_salary')")
                 settings_map = {r["key"]: r["value"] for r in cur.fetchall()}
                 fuel_price_default = float(settings_map.get("fuel_price") or 0)
                 ticket_price = float(settings_map.get("ticket_price") or 70)
                 driver_pct_no_cond = float(settings_map.get("driver_pct_no_conductor") or 37) / 100
                 driver_pct_with_cond = float(settings_map.get("driver_pct_with_conductor") or 22) / 100
                 conductor_pct = float(settings_map.get("conductor_pct") or 15) / 100
+                route6_fixed = float(settings_map.get("route6_fixed_salary") or 7000)
 
-                # Маршруты, по которым расчёт ведётся через билеты
-                TICKET_ROUTES = {"1", "3", "6", "15", "24"}
+                # Маршруты, по которым расчёт ведётся через билеты (кроме №6 — у него фиксированная ставка)
+                TICKET_ROUTES = {"1", "3", "15", "24"}
 
                 cur.execute("""
                     SELECT
@@ -752,11 +753,14 @@ def handler(event: dict, context) -> dict:
                     fuel_price = float(e.get("fuel_price_override") or fuel_price_default)
                     fuel_cost = float(e.get("fuel_spent") or 0) * fuel_price
                     has_conductor = e.get("conductor_id") is not None
+                    is_route6 = route_num == "6"
                     is_ticket_route = route_num in TICKET_ROUTES
 
                     # --- Расчётная база ---
-                    if is_ticket_route:
-                        # Маршруты 1,3,6,15,24: кол-во билетов × цена билета − топливо
+                    if is_route6:
+                        base = 0  # для маршрута 6 база не нужна, используется фиксированная ставка
+                    elif is_ticket_route:
+                        # Маршруты 1,3,15,24: кол-во билетов × цена билета − топливо
                         tickets = int(e.get("tickets_count") or 0)
                         eff_ticket_price = float(e.get("entry_ticket_price") or ticket_price)
                         base = tickets * eff_ticket_price - fuel_cost
@@ -773,7 +777,10 @@ def handler(event: dict, context) -> dict:
                                 "is_official": e["driver_is_official"],
                                 "shifts": [], "total_earned": 0
                             }
-                        if has_conductor:
+                        if is_route6:
+                            earned = route6_fixed
+                            formula = f"фикс. {int(route6_fixed):,} ₽ (маршрут 6)"
+                        elif has_conductor:
                             earned = base * driver_pct_with_cond - LUNCH
                             formula = f"{int(driver_pct_with_cond*100)}% (с кондуктором)"
                         else:
@@ -802,8 +809,12 @@ def handler(event: dict, context) -> dict:
                                 "id": cid, "full_name": e["conductor_name"],
                                 "shifts": [], "total_earned": 0
                             }
-                        c_earned = base * conductor_pct
-                        c_formula = f"{int(conductor_pct*100)}%"
+                        if is_route6:
+                            c_earned = 0
+                            c_formula = "не начисляется (маршрут 6 — фикс. ставка водителю)"
+                        else:
+                            c_earned = base * conductor_pct
+                            c_formula = f"{int(conductor_pct*100)}%"
 
                         tickets_cnt = int(e.get("tickets_count") or 0) if is_ticket_route else None
                         conductor_map[cid]["shifts"].append({
@@ -823,6 +834,7 @@ def handler(event: dict, context) -> dict:
                     "conductors": list(conductor_map.values()),
                     "fuel_price": fuel_price_default,
                     "ticket_price": ticket_price,
+                    "route6_fixed_salary": route6_fixed,
                     "driver_pct_no_conductor": int(driver_pct_no_cond * 100),
                     "driver_pct_with_conductor": int(driver_pct_with_cond * 100),
                     "conductor_pct": int(conductor_pct * 100),

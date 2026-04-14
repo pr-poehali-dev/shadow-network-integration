@@ -126,6 +126,7 @@ export default function SettingsPage() {
     driver_pct_no_conductor: "37",
     driver_pct_with_conductor: "22",
     conductor_pct: "15",
+    route6_fixed_salary: "7000",
   });
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -159,6 +160,7 @@ export default function SettingsPage() {
         driver_pct_no_conductor: s.driver_pct_no_conductor ?? "37",
         driver_pct_with_conductor: s.driver_pct_with_conductor ?? "22",
         conductor_pct: s.conductor_pct ?? "15",
+        route6_fixed_salary: s.route6_fixed_salary ?? "7000",
       });
       setLoading(false);
     });
@@ -282,7 +284,7 @@ export default function SettingsPage() {
             <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Проценты начисления зарплаты</span>
           </div>
           <p className="text-xs text-neutral-400 mb-3">
-            Применяются для расчёта ЗП на маршрутах №1, 3, 6, 15, 24.<br/>
+            Применяются для расчёта ЗП на маршрутах №1, 3, 15, 24.<br/>
             Формула: <span className="font-mono bg-neutral-100 px-1 rounded">кол-во билетов × цена билета − стоимость топлива</span> × процент
           </p>
           <div className="flex flex-col gap-4">
@@ -297,6 +299,39 @@ export default function SettingsPage() {
                 saved={saved === f.key}
               />
             ))}
+
+            {/* Маршрут №6 — фиксированная ставка */}
+            <div className="border border-neutral-200 rounded p-5 bg-amber-50/40">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-bold text-xs bg-neutral-900 text-white px-2 py-0.5 rounded">№ 6</span>
+                <h3 className="font-semibold text-neutral-900">Фиксированная ставка водителя</h3>
+              </div>
+              <p className="text-sm text-neutral-500 mb-4">
+                На маршруте №6 водитель получает фиксированную сумму за смену независимо от выручки и билетов.
+                Кондуктору на этом маршруте ЗП не начисляется.
+              </p>
+              <div className="flex items-end gap-3">
+                <div className="flex-1 relative">
+                  <label className="text-xs text-neutral-500 block mb-1">Ставка за смену, ₽</label>
+                  <input
+                    type="number" step="100" min="0"
+                    value={values.route6_fixed_salary}
+                    onChange={e => setVal("route6_fixed_salary", e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") handleSave("route6_fixed_salary"); }}
+                    placeholder="7000"
+                    className="border border-neutral-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-neutral-600"
+                  />
+                </div>
+                <button onClick={() => handleSave("route6_fixed_salary")}
+                  disabled={saving === "route6_fixed_salary" || !values.route6_fixed_salary || Number(values.route6_fixed_salary) <= 0}
+                  className="bg-neutral-900 text-white px-5 py-2 text-sm rounded hover:bg-neutral-700 transition-colors disabled:opacity-50 cursor-pointer">
+                  {saving === "route6_fixed_salary" ? "Сохраняю..." : "Сохранить"}
+                </button>
+              </div>
+              {saved === "route6_fixed_salary" && (
+                <div className="mt-2 text-sm text-green-600 flex items-center gap-1.5"><Icon name="Check" size={14} /> Сохранено</div>
+              )}
+            </div>
           </div>
 
           {/* Превью расчёта */}

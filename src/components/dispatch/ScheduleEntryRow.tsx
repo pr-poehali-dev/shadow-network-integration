@@ -1,6 +1,8 @@
+import { useState } from "react";
 import Icon from "@/components/ui/icon";
 import { Entry, Bus, Conductor, Terminal, fmtMoney } from "./scheduleTypes";
 import { printWaybill } from "./scheduleWaybill";
+import { api } from "@/lib/api";
 
 const ABSENCE_OPTIONS: { value: string; label: string; fine?: number }[] = [
   { value: "", label: "— работал —" },
@@ -50,17 +52,40 @@ interface Props {
   onSelectUpdate: (entry: Entry, field: string, value: string) => void;
   onDelete: (id: number) => void;
   onAccident?: (entry: Entry) => void;
+  canEdit?: boolean;
 }
 
 export default function ScheduleEntryRow({
   entry, date, buses, drivers, conductors, orgTerminals,
   ticketPrice, expandedId, setExpandedId,
-  onUpdate, onSelectUpdate, onDelete, onAccident,
+  onUpdate, onSelectUpdate, onDelete, onAccident, canEdit = true,
 }: Props) {
   const isExpanded = expandedId === entry.id;
   const isAbsent = !!entry.absence_reason;
   const absenceOpt = ABSENCE_OPTIONS.find(o => o.value === entry.absence_reason);
   const cashless = entry.revenue_cashless;
+  const [smsSent, setSmsSent] = useState(false);
+  const [smsSending, setSmsSending] = useState(false);
+
+  const sendDriverSms = async () => {
+    const driver = drivers.find(d => d.id === entry.driver_id);
+    const phone = (driver as Record<string, unknown>)?.phone as string | undefined;
+    if (!phone) return alert("У водителя не указан номер телефона");
+    setSmsSending(true);
+    const [y, m, d] = (entry.work_date || "").split("-");
+    await api.sendScheduleSms({
+      phone,
+      full_name: entry.driver_name || "",
+      work_date: entry.work_date,
+      route_number: entry.route_number,
+      graph_number: entry.graph_number,
+      person_type: "водитель",
+      organization: entry.route_organization || "",
+    });
+    setSmsSent(true);
+    setSmsSending(false);
+    setTimeout(() => setSmsSent(false), 4000);
+  };
 
   return (
     <tr className={`border-t border-neutral-100 hover:bg-neutral-50 transition-colors align-top ${isAbsent ? "bg-red-50/40" : ""}`}>
@@ -75,7 +100,8 @@ export default function ScheduleEntryRow({
       {/* Бортовой */}
       <td className="px-4 py-2">
         <select value={entry.bus_id ?? ""} onChange={e => onSelectUpdate(entry, "bus_id", e.target.value)}
-          className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500">
+          disabled={!canEdit}
+          className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500 disabled:bg-neutral-50 disabled:text-neutral-400">
           <option value="">— не назначен —</option>
           {buses.map(b => (
             <option key={b.id} value={b.id}>№ {b.board_number}{b.model ? ` (${b.model})` : ""}</option>
@@ -86,7 +112,8 @@ export default function ScheduleEntryRow({
       {/* Водитель */}
       <td className="px-4 py-2">
         <select value={entry.driver_id ?? ""} onChange={e => onSelectUpdate(entry, "driver_id", e.target.value)}
-          className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500">
+          disabled={!canEdit}
+          className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500 disabled:bg-neutral-50 disabled:text-neutral-400">
           <option value="">— не назначен —</option>
           {drivers.map(d => (
             <option key={d.id} value={d.id}>{d.full_name}</option>
@@ -97,7 +124,8 @@ export default function ScheduleEntryRow({
       {/* Кондуктор */}
       <td className="px-4 py-2">
         <select value={entry.conductor_id ?? ""} onChange={e => onSelectUpdate(entry, "conductor_id", e.target.value)}
-          className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500">
+          disabled={!canEdit}
+          className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500 disabled:bg-neutral-50 disabled:text-neutral-400">
           <option value="">— не назначен —</option>
           {conductors.map(c => (
             <option key={c.id} value={c.id}>{c.full_name}</option>
@@ -108,7 +136,8 @@ export default function ScheduleEntryRow({
       {/* Терминал */}
       <td className="px-4 py-2">
         <select value={entry.terminal_id ?? ""} onChange={e => onSelectUpdate(entry, "terminal_id", e.target.value)}
-          className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500">
+          disabled={!canEdit}
+          className="border border-neutral-200 rounded px-2 py-1.5 text-sm w-full bg-white focus:outline-none focus:border-neutral-500 disabled:bg-neutral-50 disabled:text-neutral-400">
           <option value="">— не выбран —</option>
           {orgTerminals.map(t => (
             <option key={t.id} value={t.id}>{t.name}</option>
@@ -207,6 +236,15 @@ export default function ScheduleEntryRow({
       {/* Действия */}
       <td className="px-4 py-2 text-center">
         <div className="flex flex-col items-center gap-1">
+          {entry.driver_id && canEdit && (
+            <button
+              onClick={sendDriverSms}
+              disabled={smsSending}
+              title={smsSent ? "SMS отправлено!" : "Отправить SMS водителю"}
+              className={`transition-colors cursor-pointer ${smsSent ? "text-green-500" : "text-neutral-400 hover:text-blue-500"}`}>
+              <Icon name={smsSent ? "CheckCheck" : "MessageSquare"} size={15} />
+            </button>
+          )}
           <button
             onClick={() => printWaybill(entry, date, entry.route_organization || "")}
             title="Печать путевого листа"

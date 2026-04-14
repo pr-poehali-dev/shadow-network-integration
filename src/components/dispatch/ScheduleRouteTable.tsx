@@ -1,6 +1,16 @@
 import { Entry, Bus, Conductor, Terminal } from "./scheduleTypes";
 import ScheduleEntryRow from "./ScheduleEntryRow";
 
+// Длительность рейса по маршруту (минуты в одну сторону), используется для расчёта интервала
+const ROUTE_CYCLE_MINUTES: Record<string, number> = {
+  "1": 120,
+  "3": 90,
+  "6": 60,
+  "15": 80,
+  "24": 100,
+};
+const DEFAULT_CYCLE = 90;
+
 interface Props {
   routeNumber: string;
   routeName: string;
@@ -20,6 +30,7 @@ interface Props {
   onSelectUpdate: (entry: Entry, field: string, value: string) => void;
   onDelete: (id: number) => void;
   onAccident?: (entry: Entry) => void;
+  canEdit?: boolean;
   calcEntryTotal: (e: Entry) => number;
   calcEntryTickets: (e: Entry) => number;
 }
@@ -28,11 +39,16 @@ export default function ScheduleRouteTable({
   routeNumber, routeName, maxGraphs, minVehicles, requiredTrips, items, date,
   buses, drivers, conductors, orgTerminals,
   ticketPrice, expandedId, setExpandedId,
-  onUpdate, onSelectUpdate, onDelete, onAccident,
+  onUpdate, onSelectUpdate, onDelete, onAccident, canEdit = true,
   calcEntryTotal, calcEntryTickets,
 }: Props) {
   const activeVehicles = items.filter(e => !e.absence_reason).length;
   const belowMin = minVehicles != null && activeVehicles < minVehicles;
+
+  // Интервал движения: цикл маршрута / количество активных ТС
+  const cycleMins = ROUTE_CYCLE_MINUTES[routeNumber] ?? DEFAULT_CYCLE;
+  const interval = activeVehicles > 0 ? Math.round(cycleMins / activeVehicles) : null;
+  const intervalIdeal = minVehicles && minVehicles > 0 ? Math.round(cycleMins / minVehicles) : null;
 
   return (
     <div className={`border rounded overflow-hidden ${belowMin ? "border-orange-400" : "border-neutral-200"}`}>
@@ -42,9 +58,24 @@ export default function ScheduleRouteTable({
         </span>
         {routeName && <span className="text-neutral-500 text-xs">{routeName}</span>}
         <span className="text-neutral-400 text-xs">{items.length} из {maxGraphs} гр.</span>
+
+        {/* Интервал движения */}
+        {interval !== null && (
+          <span className={`text-xs px-1.5 py-0.5 rounded border font-medium ${
+            belowMin
+              ? "bg-orange-100 text-orange-700 border-orange-200"
+              : "bg-blue-50 text-blue-700 border-blue-200"
+          }`}>
+            ⏱ интервал: {interval} мин
+            {intervalIdeal && interval !== intervalIdeal && (
+              <span className="text-neutral-400 ml-1">(норма {intervalIdeal} мин)</span>
+            )}
+          </span>
+        )}
+
         {minVehicles != null && (
           <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${belowMin ? "bg-orange-100 text-orange-700" : "bg-white text-neutral-600 border border-neutral-200"}`}>
-            {belowMin && "⚠ "}ТС на линии: {activeVehicles} / {minVehicles} мин.
+            {belowMin && "⚠ "}ТС: {activeVehicles} / {minVehicles} мин.
           </span>
         )}
         {requiredTrips != null && (
@@ -91,6 +122,7 @@ export default function ScheduleRouteTable({
               onSelectUpdate={onSelectUpdate}
               onDelete={onDelete}
               onAccident={onAccident}
+              canEdit={canEdit}
             />
           ))}
           {items.length > 1 && (() => {

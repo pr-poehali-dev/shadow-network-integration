@@ -1,6 +1,7 @@
 const BASE = "https://functions.poehali.dev/eddcaeff-a568-4560-b649-6d3a1ba1a4db";
 const DOCS_BASE = "https://functions.poehali.dev/f5dab932-b9b8-411b-8dae-1739a99ce665";
 const AUTH_BASE = "https://functions.poehali.dev/ffa989a9-7b30-4c2a-814b-0c251aa830a6";
+const SMS_BASE = "https://functions.poehali.dev/f71b1da6-a654-4db2-ac52-9989c629acac";
 
 function getToken() {
   return localStorage.getItem("auth_token") || "";
@@ -57,6 +58,18 @@ async function authReq(method: string, resource: string, body?: object, params?:
   url.searchParams.set("resource", resource);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
+  const res = await fetchWithRetry(url.toString(), {
+    method,
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res.json();
+}
+
+async function smsReq(method: string, resource: string, body?: object, params?: Record<string, string>) {
+  const url = new URL(SMS_BASE);
+  url.searchParams.set("resource", resource);
+  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetchWithRetry(url.toString(), {
     method,
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
@@ -281,4 +294,11 @@ export const api = {
   updateAccident: (id: number, data: object) => req("PUT", "accidents", data, { id: String(id) }),
   deleteAccident: (id: number) => req("DELETE", "accidents", undefined, { id: String(id) }),
   uploadAccidentDoc: (data: object) => req("POST", "accident_upload", data),
+
+  // SMS уведомления
+  sendScheduleSms: (data: object) => smsReq("POST", "send_schedule", data),
+  sendBirthdaySms: (data: object) => smsReq("POST", "send_birthday", data),
+  sendHolidaySms: (data: object) => smsReq("POST", "send_holiday", data),
+  getBirthdayToday: (daysAhead?: number) => smsReq("GET", "birthday_today", undefined, daysAhead !== undefined ? { days_ahead: String(daysAhead) } : undefined),
+  sendBulkBirthday: (data: object) => smsReq("POST", "send_bulk_birthday", data),
 };

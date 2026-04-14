@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { catalogCache } from "@/lib/catalogCache";
 import Icon from "@/components/ui/icon";
 import HRReports from "./HRReports";
+import SmsPanel from "./SmsPanel";
 
 // ---- Типы ----
 type Position =
@@ -722,7 +723,7 @@ export default function HRPage() {
   const canEdit = hasAccess("hr") && !isDispatcher;
 
   type HRTab = Position | "driver" | "conductor" | "reports";
-  type PageSection = "staff" | "reports";
+  type PageSection = "staff" | "reports" | "sms";
 
   const [section, setSection] = useState<PageSection>("staff");
 
@@ -757,6 +758,10 @@ export default function HRPage() {
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md cursor-pointer transition-colors ${section === "reports" ? "bg-white text-neutral-900 shadow-sm font-medium" : "text-neutral-500 hover:text-neutral-700"}`}>
               <Icon name="FileText" size={13} /> Кадровые отчёты
             </button>
+            <button onClick={() => setSection("sms")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md cursor-pointer transition-colors ${section === "sms" ? "bg-white text-neutral-900 shadow-sm font-medium" : "text-neutral-500 hover:text-neutral-700"}`}>
+              <Icon name="MessageSquare" size={13} /> SMS
+            </button>
           </div>
         )}
       </div>
@@ -764,6 +769,13 @@ export default function HRPage() {
       {/* Секция: Отчёты */}
       {section === "reports" && !isDispatcher && (
         <HRReports organization="" />
+      )}
+
+      {/* Секция: SMS уведомления */}
+      {section === "sms" && !isDispatcher && (
+        <div className="border border-neutral-200 rounded-xl p-5">
+          <SmsPanel />
+        </div>
       )}
 
       {/* Секция: Сотрудники */}

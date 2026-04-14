@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/api";
 import { catalogCache } from "@/lib/catalogCache";
+import { useAuth } from "@/lib/auth";
 import Icon from "@/components/ui/icon";
 import { Entry, Route, Bus, Driver, Conductor, Terminal, today, fmtMoney } from "./scheduleTypes";
 import { handlePrint } from "./scheduleWaybill";
@@ -70,6 +71,8 @@ function QuickAccidentModal({ entry, date, onClose, onCreated }: {
 }
 
 export default function SchedulePage({ onAccidentCreated }: { onAccidentCreated?: () => void } = {}) {
+  const { user } = useAuth();
+  const canEdit = user?.role === "admin" || user?.role === "dispatcher";
   const [date, setDate] = useState(today());
   const [accidentEntry, setAccidentEntry] = useState<Entry | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
@@ -183,10 +186,37 @@ export default function SchedulePage({ onAccidentCreated }: { onAccidentCreated?
     }
   }, [date, loadSchedule]);
 
+  // Проверяет является ли дата рабочим днём по графику водителя
+  const isDriverWorkDay = useCallback((driver: Driver, checkDate: string): boolean | null => {
+    const ws = driver.work_schedule;
+    const ssd = driver.schedule_start_date;
+    if (!ws || !ssd || ws === "individual") return null;
+    const parts = ws.split("/");
+    if (parts.length !== 2) return null;
+    const workDays = parseInt(parts[0]);
+    const restDays = parseInt(parts[1]);
+    const cycle = workDays + restDays;
+    const start = new Date(ssd);
+    const check = new Date(checkDate);
+    const delta = Math.floor((check.getTime() - start.getTime()) / 86400000);
+    const pos = ((delta % cycle) + cycle) % cycle;
+    return pos < workDays;
+  }, []);
+
   const handleSelectUpdate = useCallback((entry: Entry, field: string, value: string) => {
     const v = value ? Number(value) : null;
+    if (field === "driver_id" && v) {
+      const driver = drivers.find(d => d.id === v);
+      if (driver) {
+        const isWorkDay = isDriverWorkDay(driver, entry.work_date || date);
+        // Если isWorkDay === false — водитель выходит НЕ в свой день → подработка
+        const autoOvertime = isWorkDay === false ? true : entry.is_overtime;
+        handleUpdate(entry, { driver_id: v, is_overtime: autoOvertime });
+        return;
+      }
+    }
     handleUpdate(entry, { [field]: v });
-  }, [handleUpdate]);
+  }, [handleUpdate, drivers, date, isDriverWorkDay]);
 
   const handleDelete = async (id: number) => {
     if (!confirm("Удалить строку?")) return;
@@ -313,7 +343,12 @@ export default function SchedulePage({ onAccidentCreated }: { onAccidentCreated?
         })}
       </div>
 
-      <div className="bg-neutral-50 border border-neutral-200 rounded p-4 mb-6 flex flex-wrap gap-3 items-end">
+      {!canEdit && (
+        <div className="mb-4 px-4 py-2 bg-neutral-100 border border-neutral-200 rounded text-xs text-neutral-500 flex items-center gap-2">
+          <Icon name="Eye" size={13} /> Режим просмотра — редактирование доступно администратору и диспетчеру
+        </div>
+      )}
+      <div className={`bg-neutral-50 border border-neutral-200 rounded p-4 mb-6 flex flex-wrap gap-3 items-end ${!canEdit ? "opacity-50 pointer-events-none" : ""}`}>
         <div className="flex-1 min-w-[180px]">
           <label className="text-xs text-neutral-500 block mb-1">Маршрут</label>
           <select value={addRouteId} onChange={e => handleRouteChange(e.target.value)}
@@ -391,6 +426,7 @@ export default function SchedulePage({ onAccidentCreated }: { onAccidentCreated?
                 onSelectUpdate={handleSelectUpdate}
                 onDelete={handleDelete}
                 onAccident={entry => setAccidentEntry(entry)}
+                canEdit={canEdit}
                 calcEntryTotal={calcEntryTotal}
                 calcEntryTickets={calcEntryTickets}
               />

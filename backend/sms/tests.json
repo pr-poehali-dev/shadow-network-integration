@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "GET birthday_today",
+      "method": "GET",
+      "path": "/?resource=birthday_today",
+      "expectedStatus": 200,
+      "expectedBody": { "people": [], "count": 0 },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
