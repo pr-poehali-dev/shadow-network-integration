@@ -34,7 +34,9 @@ def hash_password(password):
 
 
 def get_current_user(event):
-    auth = event.get("headers", {}).get("Authorization") or event.get("headers", {}).get("authorization") or ""
+    headers = event.get("headers", {})
+    auth = (headers.get("X-Authorization") or headers.get("x-authorization") or
+            headers.get("Authorization") or headers.get("authorization") or "")
     token = auth.replace("Bearer ", "") if auth.startswith("Bearer ") else ""
     if not token:
         params = event.get("queryStringParameters") or {}
@@ -108,7 +110,8 @@ def handler(event: dict, context) -> dict:
 
     # --- LOGOUT ---
     if resource == "logout" and method == "POST":
-        auth = event.get("headers", {}).get("Authorization") or event.get("headers", {}).get("authorization") or ""
+        h = event.get("headers", {})
+        auth = h.get("X-Authorization") or h.get("x-authorization") or h.get("Authorization") or h.get("authorization") or ""
         token = auth.replace("Bearer ", "") if auth.startswith("Bearer ") else ""
         if token:
             with get_conn() as conn:
