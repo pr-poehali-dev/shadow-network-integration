@@ -41,6 +41,16 @@ export default function LoginPage() {
             />
           </div>
 
+          <div>
+            <label className="text-xs text-neutral-500 block mb-1">Пароль</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="border border-neutral-300 rounded px-3 py-2.5 text-sm w-full focus:outline-none focus:border-neutral-600"
+            />
+          </div>
+
           {error && (
             <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded flex items-center gap-2">
               <Icon name="AlertCircle" size={14} />

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth, AuthProvider, ROLE_LABELS, Role, TabId } from "@/lib/auth";
 import CatalogPage from "@/components/dispatch/CatalogPage";
-import DriversPage from "@/components/dispatch/DriversPage";
 import SchedulePage from "@/components/dispatch/SchedulePage";
 import SummaryPage from "@/components/dispatch/SummaryPage";
 import BusDocsPage from "@/components/dispatch/BusDocsPage";
@@ -21,25 +20,24 @@ import HRPage from "@/components/dispatch/HRPage";
 import Icon from "@/components/ui/icon";
 
 const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
-  { id: "schedule",        label: "Расписание",        icon: "CalendarDays" },
-  { id: "summary",         label: "Сводка смен",       icon: "BarChart2" },
-  { id: "busdocs",         label: "Документы ТС",      icon: "FileText" },
-  { id: "routes",          label: "Маршруты",          icon: "Map" },
-  { id: "buses",           label: "Автобусы",          icon: "Bus" },
-  { id: "drivers",         label: "Водители",          icon: "User" },
-  { id: "conductors",      label: "Кондукторы",        icon: "Users" },
-  { id: "terminals",       label: "Терминалы",         icon: "MonitorSmartphone" },
-  { id: "salary",          label: "Зарплата",          icon: "Banknote" },
-  { id: "mechanics",       label: "Механики",          icon: "Wrench" },
-  { id: "journal_medical", label: "Журнал медика",        icon: "Stethoscope",  group: "Журналы" },
-  { id: "journal_release", label: "Журнал выпуска ТС",   icon: "ClipboardList", group: "Журналы" },
-  { id: "cash",            label: "Наличные",             icon: "Wallet" },
-  { id: "cashier",         label: "Касса",                icon: "Landmark" },
-  { id: "repair",          label: "Служба ремонта",       icon: "Wrench" },
-  { id: "hr",              label: "Кадры",                icon: "UsersRound" },
-  { id: "company_card",    label: "Карточка предприятия", icon: "Building2",     group: "Администрирование" },
-  { id: "users",           label: "Пользователи",         icon: "Shield",        group: "Администрирование" },
-  { id: "settings",        label: "Настройки",            icon: "Settings",      group: "Администрирование" },
+  { id: "schedule",         label: "Расписание",           icon: "CalendarDays" },
+  { id: "summary",          label: "Сводка смен",          icon: "BarChart2" },
+  { id: "busdocs",          label: "Документы ТС",         icon: "FileText" },
+  { id: "routes",           label: "Маршруты",             icon: "Map" },
+  { id: "buses",            label: "Автобусы",             icon: "Bus" },
+  { id: "terminals",        label: "Терминалы",            icon: "MonitorSmartphone" },
+  { id: "salary",           label: "Зарплата",             icon: "Banknote" },
+  { id: "mechanics",        label: "Механики",             icon: "Wrench" },
+  { id: "journal_medical",  label: "Журнал медика",        icon: "Stethoscope",   group: "Журналы" },
+  { id: "journal_release",  label: "Журнал выпуска ТС",   icon: "ClipboardList", group: "Журналы" },
+  { id: "cash",             label: "Наличные",             icon: "Wallet",        group: "Финансы" },
+  { id: "cashier",          label: "Касса",                icon: "Landmark",      group: "Финансы" },
+  { id: "cash_restrictions",label: "Ограничения выдачи",  icon: "ShieldAlert",   group: "Финансы" },
+  { id: "hr",               label: "Кадры",                icon: "UsersRound" },
+  { id: "repair",           label: "Служба ремонта",       icon: "Wrench" },
+  { id: "company_card",     label: "Карточка предприятия", icon: "Building2",     group: "Администрирование" },
+  { id: "users",            label: "Пользователи",         icon: "Shield",        group: "Администрирование" },
+  { id: "settings",         label: "Настройки",            icon: "Settings",      group: "Администрирование" },
 ];
 
 function DispatchApp() {
@@ -136,31 +134,6 @@ function DispatchApp() {
             />
           )}
 
-          {currentTab === "drivers" && <DriversPage />}
-
-          {currentTab === "conductors" && (
-            <CatalogPage
-              title="Кондукторы"
-              fields={[
-                { key: "full_name", label: "ФИО", placeholder: "Фамилия Имя Отчество" },
-                { key: "phone", label: "Телефон", placeholder: "Номер телефона" },
-                { key: "birth_date", label: "Дата рождения", placeholder: "ГГГГ-ММ-ДД" },
-                { key: "snils", label: "СНИЛС", placeholder: "000-000-000 00" },
-                { key: "inn", label: "ИНН", placeholder: "ИНН" },
-              ]}
-              fetchFn={api.getConductors}
-              createFn={data => api.createConductor(data as { full_name: string })}
-              updateFn={(id, data) => api.updateConductor(id, data as { full_name: string })}
-              deleteFn={api.deleteConductor}
-              renderRow={item => (
-                <div className="flex items-center gap-3">
-                  <span className="text-neutral-900 font-medium">{String(item.full_name)}</span>
-                  {item.phone && <span className="text-neutral-500 text-xs">{String(item.phone)}</span>}
-                </div>
-              )}
-            />
-          )}
-
           {currentTab === "terminals" && (
             <CatalogPage
               title="Терминалы"
@@ -208,6 +181,7 @@ function DispatchApp() {
           {currentTab === "journal_release" && <VehicleReleasePage />}
           {currentTab === "cash" && <CashPage />}
           {currentTab === "cashier" && <CashierPage />}
+          {currentTab === "cash_restrictions" && <CashierPage />}
           {currentTab === "repair" && <RepairPage />}
           {currentTab === "hr" && <HRPage />}
           {currentTab === "company_card" && <CompanyCardPage />}

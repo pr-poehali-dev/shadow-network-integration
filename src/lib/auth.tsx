@@ -3,7 +3,7 @@ import { api } from "./api";
 
 export type Role = "admin" | "dispatcher" | "mechanic" | "hr" | "accountant" | "cashier" | "repair_mechanic" | "hr_head";
 
-export type TabId = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors" | "terminals" | "settings" | "users" | "salary" | "mechanics" | "journal_medical" | "journal_release" | "company_card" | "cash" | "cashier" | "cash_restrictions" | "repair" | "hr";
+export type TabId = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "terminals" | "settings" | "users" | "salary" | "mechanics" | "journal_medical" | "journal_release" | "company_card" | "cash" | "cashier" | "cash_restrictions" | "repair" | "hr";
 
 export interface User {
   id: number;
@@ -30,10 +30,10 @@ const AuthContext = createContext<AuthCtx>({
 });
 
 const DEFAULT_ROLE_TABS: Record<Role, TabId[]> = {
-  admin: ["schedule", "summary", "busdocs", "routes", "buses", "drivers", "conductors", "terminals", "salary", "mechanics", "journal_medical", "journal_release", "company_card", "cash", "cashier", "cash_restrictions", "repair", "hr", "settings", "users"],
+  admin: ["schedule", "summary", "busdocs", "routes", "buses", "terminals", "salary", "mechanics", "journal_medical", "journal_release", "company_card", "cash", "cashier", "cash_restrictions", "repair", "hr", "settings", "users"],
   dispatcher: ["schedule", "summary", "busdocs", "journal_medical", "journal_release", "hr"],
   mechanic: ["busdocs", "buses", "mechanics", "journal_release"],
-  hr: ["drivers", "conductors"],
+  hr: ["hr"],
   accountant: ["summary", "salary", "cash", "cashier", "cash_restrictions"],
   cashier: ["cashier"],
   repair_mechanic: ["repair", "buses"],
@@ -46,10 +46,9 @@ export const ALL_TABS: { id: TabId; label: string }[] = [
   { id: "busdocs", label: "Документы ТС" },
   { id: "routes", label: "Маршруты" },
   { id: "buses", label: "Автобусы" },
-  { id: "drivers", label: "Водители" },
-  { id: "conductors", label: "Кондукторы" },
   { id: "terminals", label: "Терминалы" },
   { id: "salary", label: "Зарплата" },
+  { id: "mechanics", label: "Механики" },
   { id: "journal_medical", label: "Журнал медика" },
   { id: "journal_release", label: "Журнал выпуска ТС" },
   { id: "company_card", label: "Карточка предприятия" },
@@ -85,8 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }).catch(() => { setLoading(false); });
   }, []);
 
-  const login = async (username: string, _password?: string) => {
-    const res = await api.login(username, "");
+  const login = async (username: string, password?: string) => {
+    const res = await api.login(username, password ?? "");
     if (res?.error) return res.error;
     if (res?.token && res?.user) {
       localStorage.setItem("auth_token", res.token);
