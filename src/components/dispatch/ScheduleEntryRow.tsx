@@ -45,9 +45,6 @@ interface Props {
   drivers: { id: number; full_name: string }[];
   conductors: Conductor[];
   orgTerminals: Terminal[];
-  ticketPrice: number;
-  expandedId: number | null;
-  setExpandedId: (id: number | null) => void;
   onUpdate: (entry: Entry, fields: Record<string, unknown>) => void;
   onSelectUpdate: (entry: Entry, field: string, value: string) => void;
   onDelete: (id: number) => void;
@@ -57,13 +54,9 @@ interface Props {
 
 export default function ScheduleEntryRow({
   entry, date, buses, drivers, conductors, orgTerminals,
-  ticketPrice, expandedId, setExpandedId,
   onUpdate, onSelectUpdate, onDelete, onAccident, canEdit = true,
 }: Props) {
-  const isExpanded = expandedId === entry.id;
   const isAbsent = !!entry.absence_reason;
-  const absenceOpt = ABSENCE_OPTIONS.find(o => o.value === entry.absence_reason);
-  const cashless = entry.revenue_cashless;
   const [smsSent, setSmsSent] = useState(false);
   const [smsSending, setSmsSending] = useState(false);
 
@@ -145,12 +138,6 @@ export default function ScheduleEntryRow({
         </select>
       </td>
 
-      {/* ДТ */}
-      <td className="px-4 py-2">
-        <NumInput value={entry.fuel_spent} placeholder="л"
-          onSave={v => onUpdate(entry, { fuel_spent: v ? Number(v) : null })} />
-      </td>
-
       {/* Подработка */}
       <td className="px-4 py-2 text-center">
         <button
@@ -186,61 +173,6 @@ export default function ScheduleEntryRow({
         {entry.absence_reason === "alcohol" && (
           <div className="text-xs text-red-600 font-semibold mt-1 text-right">
             Штраф: 5 000 ₽
-          </div>
-        )}
-      </td>
-
-      {/* Билеты (заполняет кассир) */}
-      <td className="px-4 py-2 text-center">
-        {entry.tickets_sold != null ? (
-          <span className="inline-block bg-indigo-50 text-indigo-700 border border-indigo-200 rounded px-2 py-0.5 text-xs font-semibold font-mono">
-            {entry.tickets_sold}
-          </span>
-        ) : (
-          <span className="text-neutral-300 text-xs">—</span>
-        )}
-      </td>
-
-      {/* Безналичные */}
-      <td className="px-4 py-2">
-        <button
-          onClick={() => setExpandedId(isExpanded ? null : entry.id)}
-          className={`flex items-center gap-1.5 w-full justify-end text-sm cursor-pointer rounded px-2 py-1.5 transition-colors ${
-            isExpanded ? "bg-neutral-200 text-neutral-900" : "hover:bg-neutral-100 text-neutral-600"
-          }`}
-        >
-          {cashless != null ? (
-            <span className="font-semibold">{fmtMoney(cashless)}</span>
-          ) : (
-            <span className="text-neutral-400">Ввести</span>
-          )}
-          <Icon name={isExpanded ? "ChevronUp" : "ChevronDown"} size={13} />
-        </button>
-
-        {isExpanded && (
-          <div className="mt-2 p-3 bg-neutral-50 border border-neutral-200 rounded space-y-2">
-            <div>
-              <label className="text-xs text-neutral-500 block mb-0.5">Безналичные (терминал), ₽</label>
-              <NumInput value={entry.revenue_cashless} placeholder="0.00"
-                onSave={v => {
-                  const cashlessVal = v ? Number(v) : null;
-                  onUpdate(entry, {
-                    revenue_cashless: cashlessVal,
-                    // revenue_total = cashless, т.к. в системе выручка вносится только через терминал
-                    revenue_total: cashlessVal,
-                  });
-                }} />
-            </div>
-            <div className="pt-1 border-t border-neutral-200">
-              <label className="text-xs text-neutral-500 block mb-0.5">
-                Цена топлива, ₽/л
-                {entry.fuel_price_override != null
-                  ? <span className="ml-1 text-amber-600">(индивидуальная)</span>
-                  : <span className="ml-1 text-neutral-400">(из настроек)</span>}
-              </label>
-              <NumInput value={entry.fuel_price_override} placeholder="по умолчанию"
-                onSave={v => onUpdate(entry, { fuel_price_override: v ? Number(v) : null })} />
-            </div>
           </div>
         )}
       </td>

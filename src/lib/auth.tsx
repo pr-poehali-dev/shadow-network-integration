@@ -3,7 +3,7 @@ import { api } from "./api";
 
 export type Role = "admin" | "dispatcher" | "mechanic" | "hr" | "accountant" | "cashier" | "repair_mechanic" | "hr_head" | "accountant_head";
 
-export type TabId = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "terminals" | "settings" | "users" | "salary" | "journal_medical" | "journal_release" | "company_card" | "cash" | "cashier" | "cash_restrictions" | "repair" | "hr" | "accounting" | "bdd";
+export type TabId = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "terminals" | "settings" | "users" | "salary" | "journal_medical" | "journal_release" | "company_card" | "cash" | "cashier" | "cash_restrictions" | "repair" | "hr" | "accounting" | "bdd" | "sales";
 
 export interface User {
   id: number;
@@ -30,8 +30,8 @@ const AuthContext = createContext<AuthCtx>({
 });
 
 const DEFAULT_ROLE_TABS: Record<Role, TabId[]> = {
-  admin: ["schedule", "summary", "busdocs", "routes", "buses", "terminals", "salary", "journal_medical", "journal_release", "company_card", "cash", "cashier", "cash_restrictions", "repair", "hr", "accounting", "bdd", "settings", "users"],
-  dispatcher: ["schedule", "summary", "busdocs", "journal_medical", "journal_release", "bdd", "hr"],
+  admin: ["schedule", "summary", "sales", "busdocs", "routes", "buses", "terminals", "salary", "journal_medical", "journal_release", "company_card", "cash", "cashier", "cash_restrictions", "repair", "hr", "accounting", "bdd", "settings", "users"],
+  dispatcher: ["schedule", "summary", "sales", "busdocs", "journal_medical", "journal_release", "bdd", "hr"],
   mechanic: ["busdocs", "buses", "journal_release", "repair", "bdd"],
   hr: ["hr"],
   accountant: ["summary", "salary", "cash", "cashier", "cash_restrictions", "accounting"],
@@ -57,6 +57,7 @@ export const ALL_TABS: { id: TabId; label: string }[] = [
   { id: "cash_restrictions", label: "Ограничения выдачи" },
   { id: "repair", label: "Служба ремонта" },
   { id: "hr", label: "Кадры" },
+  { id: "sales", label: "Продажи" },
   { id: "accounting", label: "Бухгалтерия" },
   { id: "bdd", label: "БДД" },
   { id: "settings", label: "Настройки" },
