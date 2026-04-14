@@ -21,6 +21,15 @@ interface VehicleRecord {
   odometer_departure: number | null;
   odometer_arrival: number | null;
   notes: string | null;
+  // Расширенные поля осмотра (по ГОСТ Р 51709-2001, Приказ Минтранса №141)
+  fuel_level?: string | null;
+  tire_pressure?: string | null;
+  brakes_ok?: boolean;
+  lights_ok?: boolean;
+  body_ok?: boolean;
+  tech_condition?: string | null;
+  defects_found?: string | null;
+  waybill_number?: string | null;
 }
 
 interface Mechanic {
@@ -168,6 +177,14 @@ export default function VehicleReleasePage() {
       odometer_departure: r.odometer_departure ?? null,
       odometer_arrival: r.odometer_arrival ?? null,
       notes: r.notes ?? "",
+      fuel_level: r.fuel_level ?? "",
+      tire_pressure: r.tire_pressure ?? "",
+      brakes_ok: r.brakes_ok ?? true,
+      lights_ok: r.lights_ok ?? true,
+      body_ok: r.body_ok ?? true,
+      tech_condition: r.tech_condition ?? "исправен",
+      defects_found: r.defects_found ?? "",
+      waybill_number: r.waybill_number ?? "",
     });
   };
 
@@ -334,11 +351,45 @@ export default function VehicleReleasePage() {
                           ))}
                         </select>
                       </td>
-                      <td className="px-3 py-2">
-                        <input value={editForm.notes as string ?? ""}
-                          onChange={e => setF("notes", e.target.value)}
-                          placeholder="Примечание"
-                          className="border border-neutral-300 rounded px-2 py-1 text-xs w-full focus:outline-none" />
+                      <td className="px-3 py-2" colSpan={2}>
+                        <div className="space-y-1">
+                          <input value={editForm.waybill_number as string ?? ""}
+                            onChange={e => setF("waybill_number", e.target.value)}
+                            placeholder="№ путевого листа"
+                            className="border border-neutral-300 rounded px-2 py-1 text-xs w-full focus:outline-none" />
+                          <div className="flex gap-1 flex-wrap">
+                            {[
+                              { key: "brakes_ok", label: "Тормоза" },
+                              { key: "lights_ok", label: "Свет" },
+                              { key: "body_ok", label: "Кузов" },
+                            ].map(({ key, label }) => (
+                              <button key={key}
+                                onClick={() => setF(key as keyof VehicleRecord, !(editForm[key as keyof typeof editForm] as boolean ?? true))}
+                                className={`px-1.5 py-0.5 rounded text-xs border cursor-pointer ${(editForm[key as keyof typeof editForm] as boolean ?? true) ? "bg-green-50 border-green-300 text-green-700" : "bg-red-50 border-red-300 text-red-700"}`}>
+                                {label} {(editForm[key as keyof typeof editForm] as boolean ?? true) ? "✓" : "✗"}
+                              </button>
+                            ))}
+                          </div>
+                          <select value={editForm.tech_condition as string ?? "исправен"}
+                            onChange={e => setF("tech_condition", e.target.value)}
+                            className="border border-neutral-300 rounded px-2 py-1 text-xs w-full focus:outline-none bg-white">
+                            <option value="исправен">Исправен</option>
+                            <option value="требует ремонта">Требует ремонта</option>
+                            <option value="неисправен">Неисправен</option>
+                          </select>
+                          <input value={editForm.fuel_level as string ?? ""}
+                            onChange={e => setF("fuel_level", e.target.value)}
+                            placeholder="Уровень топлива"
+                            className="border border-neutral-300 rounded px-2 py-1 text-xs w-full focus:outline-none" />
+                          <input value={editForm.defects_found as string ?? ""}
+                            onChange={e => setF("defects_found", e.target.value)}
+                            placeholder="Выявленные дефекты"
+                            className="border border-neutral-300 rounded px-2 py-1 text-xs w-full focus:outline-none" />
+                          <input value={editForm.notes as string ?? ""}
+                            onChange={e => setF("notes", e.target.value)}
+                            placeholder="Примечание"
+                            className="border border-neutral-300 rounded px-2 py-1 text-xs w-full focus:outline-none" />
+                        </div>
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-col gap-1">

@@ -5,6 +5,7 @@ import { catalogCache } from "@/lib/catalogCache";
 import Icon from "@/components/ui/icon";
 import HRReports from "./HRReports";
 import SmsPanel from "./SmsPanel";
+import HRImportPage from "./HRImportPage";
 
 // ---- Типы ----
 type Position =
@@ -723,7 +724,7 @@ export default function HRPage() {
   const canEdit = hasAccess("hr") && !isDispatcher;
 
   type HRTab = Position | "driver" | "conductor" | "reports";
-  type PageSection = "staff" | "reports" | "sms";
+  type PageSection = "staff" | "reports" | "sms" | "import1c";
 
   const [section, setSection] = useState<PageSection>("staff");
 
@@ -762,6 +763,10 @@ export default function HRPage() {
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md cursor-pointer transition-colors ${section === "sms" ? "bg-white text-neutral-900 shadow-sm font-medium" : "text-neutral-500 hover:text-neutral-700"}`}>
               <Icon name="MessageSquare" size={13} /> SMS
             </button>
+            <button onClick={() => setSection("import1c")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md cursor-pointer transition-colors ${section === "import1c" ? "bg-white text-neutral-900 shadow-sm font-medium" : "text-neutral-500 hover:text-neutral-700"}`}>
+              <Icon name="FileUp" size={13} /> Импорт 1С
+            </button>
           </div>
         )}
       </div>
@@ -775,6 +780,13 @@ export default function HRPage() {
       {section === "sms" && !isDispatcher && (
         <div className="border border-neutral-200 rounded-xl p-5">
           <SmsPanel />
+        </div>
+      )}
+
+      {/* Секция: Импорт из 1С */}
+      {section === "import1c" && !isDispatcher && (
+        <div className="border border-neutral-200 rounded-xl p-5">
+          <HRImportPage />
         </div>
       )}
 

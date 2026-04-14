@@ -19,6 +19,17 @@ interface MedicalRecord {
   pre_shift_note: string | null;
   post_shift_note: string | null;
   medic_name: string | null;
+  // Расширенные поля (по приказу Минтранса № 7 от 15.01.2021)
+  blood_pressure_pre?: string | null;
+  pulse_pre?: number | null;
+  alcohol_pre?: number | null;
+  temperature_pre?: number | null;
+  complaints_pre?: string | null;
+  blood_pressure_post?: string | null;
+  pulse_post?: number | null;
+  alcohol_post?: number | null;
+  temperature_post?: number | null;
+  complaints_post?: string | null;
 }
 
 function today() { return new Date().toISOString().slice(0, 10); }
@@ -153,6 +164,16 @@ export default function MedicalJournalPage() {
       pre_shift_note: r.pre_shift_note ?? "",
       post_shift_note: r.post_shift_note ?? "",
       medic_name: r.medic_name ?? medicName,
+      blood_pressure_pre: r.blood_pressure_pre ?? "",
+      pulse_pre: r.pulse_pre ?? undefined,
+      alcohol_pre: r.alcohol_pre ?? undefined,
+      temperature_pre: r.temperature_pre ?? undefined,
+      complaints_pre: r.complaints_pre ?? "",
+      blood_pressure_post: r.blood_pressure_post ?? "",
+      pulse_post: r.pulse_post ?? undefined,
+      alcohol_post: r.alcohol_post ?? undefined,
+      temperature_post: r.temperature_post ?? undefined,
+      complaints_post: r.complaints_post ?? "",
     });
   };
 
@@ -269,15 +290,35 @@ export default function MedicalJournalPage() {
               {records.map((r, i) => {
                 const isEditing = editingId === r.id;
                 if (isEditing) {
+                  const inp = "border border-neutral-300 rounded px-2 py-1 text-xs w-full focus:outline-none";
                   return (
                     <tr key={r.id} className="border-t border-blue-100 bg-blue-50">
                       <td className="px-3 py-2 text-center text-neutral-400 text-xs">{i + 1}</td>
-                      <td className="px-3 py-2 font-medium text-sm">{r.driver_name || "—"}</td>
+                      <td className="px-3 py-2 font-medium text-sm">
+                        <div>{r.driver_name || "—"}</div>
+                        <input value={editForm.medic_name as string ?? ""}
+                          onChange={e => setF("medic_name", e.target.value)}
+                          placeholder="ФИО медика"
+                          className={`mt-1 ${inp}`} />
+                      </td>
                       <td className="px-3 py-2 text-center text-xs text-neutral-500">м.{r.route_number || "?"} гр.{r.graph_number ?? "?"}</td>
+                      {/* Предсменный */}
                       <td className="px-3 py-2 bg-blue-50">
                         <input type="time" value={editForm.pre_shift_time as string ?? ""}
                           onChange={e => setF("pre_shift_time", e.target.value)}
-                          className="border border-neutral-300 rounded px-2 py-1 text-sm w-full focus:outline-none" />
+                          className={`${inp} mb-1`} />
+                        <input value={editForm.blood_pressure_pre as string ?? ""}
+                          onChange={e => setF("blood_pressure_pre", e.target.value)}
+                          placeholder="АД (120/80)" className={`${inp} mb-1`} />
+                        <input type="number" value={(editForm.pulse_pre as number) ?? ""}
+                          onChange={e => setF("pulse_pre", e.target.value ? Number(e.target.value) : null)}
+                          placeholder="Пульс" className={`${inp} mb-1`} />
+                        <input type="number" step="0.1" value={(editForm.temperature_pre as number) ?? ""}
+                          onChange={e => setF("temperature_pre", e.target.value ? Number(e.target.value) : null)}
+                          placeholder="Т°" className={`${inp} mb-1`} />
+                        <input type="number" step="0.01" value={(editForm.alcohol_pre as number) ?? ""}
+                          onChange={e => setF("alcohol_pre", e.target.value ? Number(e.target.value) : null)}
+                          placeholder="Алк. (0.00)" className={inp} />
                       </td>
                       <td className="px-3 py-2 text-center bg-blue-50">
                         <button
@@ -292,12 +333,29 @@ export default function MedicalJournalPage() {
                         <input value={editForm.pre_shift_note as string ?? ""}
                           onChange={e => setF("pre_shift_note", e.target.value)}
                           placeholder="Примечание"
-                          className="border border-neutral-300 rounded px-2 py-1 text-xs w-full focus:outline-none" />
+                          className={`${inp} mb-1`} />
+                        <input value={editForm.complaints_pre as string ?? ""}
+                          onChange={e => setF("complaints_pre", e.target.value)}
+                          placeholder="Жалобы"
+                          className={inp} />
                       </td>
+                      {/* Послесменный */}
                       <td className="px-3 py-2 bg-amber-50">
                         <input type="time" value={editForm.post_shift_time as string ?? ""}
                           onChange={e => setF("post_shift_time", e.target.value)}
-                          className="border border-neutral-300 rounded px-2 py-1 text-sm w-full focus:outline-none" />
+                          className={`${inp} mb-1`} />
+                        <input value={editForm.blood_pressure_post as string ?? ""}
+                          onChange={e => setF("blood_pressure_post", e.target.value)}
+                          placeholder="АД (120/80)" className={`${inp} mb-1`} />
+                        <input type="number" value={(editForm.pulse_post as number) ?? ""}
+                          onChange={e => setF("pulse_post", e.target.value ? Number(e.target.value) : null)}
+                          placeholder="Пульс" className={`${inp} mb-1`} />
+                        <input type="number" step="0.1" value={(editForm.temperature_post as number) ?? ""}
+                          onChange={e => setF("temperature_post", e.target.value ? Number(e.target.value) : null)}
+                          placeholder="Т°" className={`${inp} mb-1`} />
+                        <input type="number" step="0.01" value={(editForm.alcohol_post as number) ?? ""}
+                          onChange={e => setF("alcohol_post", e.target.value ? Number(e.target.value) : null)}
+                          placeholder="Алк. (0.00)" className={inp} />
                       </td>
                       <td className="px-3 py-2 text-center bg-amber-50">
                         <button
@@ -312,7 +370,11 @@ export default function MedicalJournalPage() {
                         <input value={editForm.post_shift_note as string ?? ""}
                           onChange={e => setF("post_shift_note", e.target.value)}
                           placeholder="Примечание"
-                          className="border border-neutral-300 rounded px-2 py-1 text-xs w-full focus:outline-none" />
+                          className={`${inp} mb-1`} />
+                        <input value={editForm.complaints_post as string ?? ""}
+                          onChange={e => setF("complaints_post", e.target.value)}
+                          placeholder="Жалобы"
+                          className={inp} />
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-col gap-1">

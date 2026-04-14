@@ -924,6 +924,8 @@ def handler(event: dict, context) -> dict:
                             pre_shift_time=%s, post_shift_time=%s,
                             pre_shift_admitted=%s, post_shift_admitted=%s,
                             pre_shift_note=%s, post_shift_note=%s, medic_name=%s,
+                            blood_pressure_pre=%s, pulse_pre=%s, alcohol_pre=%s, temperature_pre=%s, complaints_pre=%s,
+                            blood_pressure_post=%s, pulse_post=%s, alcohol_post=%s, temperature_post=%s, complaints_post=%s,
                             updated_at=NOW()
                         WHERE id=%s RETURNING *
                     """, (
@@ -934,6 +936,16 @@ def handler(event: dict, context) -> dict:
                         body.get("pre_shift_note") or None,
                         body.get("post_shift_note") or None,
                         body.get("medic_name") or None,
+                        body.get("blood_pressure_pre") or None,
+                        int(body.get("pulse_pre")) if body.get("pulse_pre") else None,
+                        float(body.get("alcohol_pre")) if body.get("alcohol_pre") else None,
+                        float(body.get("temperature_pre")) if body.get("temperature_pre") else None,
+                        body.get("complaints_pre") or None,
+                        body.get("blood_pressure_post") or None,
+                        int(body.get("pulse_post")) if body.get("pulse_post") else None,
+                        float(body.get("alcohol_post")) if body.get("alcohol_post") else None,
+                        float(body.get("temperature_post")) if body.get("temperature_post") else None,
+                        body.get("complaints_post") or None,
                         item_id,
                     ))
                     conn.commit()
@@ -1092,6 +1104,9 @@ def handler(event: dict, context) -> dict:
                             mechanic_id=%s, mechanic_name=%s,
                             departure_time=%s, arrival_time=%s,
                             odometer_departure=%s, odometer_arrival=%s,
+                            fuel_level=%s, tire_pressure=%s,
+                            brakes_ok=%s, lights_ok=%s, body_ok=%s,
+                            tech_condition=%s, defects_found=%s, waybill_number=%s,
                             notes=%s, updated_at=NOW()
                         WHERE id=%s RETURNING *
                     """, (
@@ -1101,6 +1116,14 @@ def handler(event: dict, context) -> dict:
                         body.get("arrival_time") or None,
                         body.get("odometer_departure") or None,
                         body.get("odometer_arrival") or None,
+                        body.get("fuel_level") or None,
+                        body.get("tire_pressure") or None,
+                        bool(body.get("brakes_ok", True)),
+                        bool(body.get("lights_ok", True)),
+                        bool(body.get("body_ok", True)),
+                        body.get("tech_condition", "исправен"),
+                        body.get("defects_found") or None,
+                        body.get("waybill_number") or None,
                         body.get("notes") or None,
                         item_id,
                     ))
@@ -1362,14 +1385,18 @@ def handler(event: dict, context) -> dict:
                         return err("schedule_entry_id required")
                     bill_vals = {b: int(body.get(b) or 0) for b in BILLS}
                     cash_total = sum(bill_vals[b] * BILL_VALUES[b] for b in BILLS)
+                    fuel_cash = float(body.get("fuel_cash_amount") or 0)
+                    fuel_liters = float(body.get("fuel_liters")) if body.get("fuel_liters") else None
+                    fuel_price_per_liter = float(body.get("fuel_price_per_liter")) if body.get("fuel_price_per_liter") else None
                     cur.execute("""
                         INSERT INTO cashier_reports
                             (report_date, schedule_entry_id, board_number, gov_number, driver_name,
                              route_number, graph_number, organization,
                              bills_5000, bills_2000, bills_1000, bills_500, bills_200, bills_100, bills_50, bills_10,
                              coins_10, coins_5, coins_2, coins_1,
-                             cashless_amount, is_overtime, notes, created_by)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                             cashless_amount, is_overtime, notes, created_by,
+                             fuel_cash_amount, fuel_liters, fuel_price_per_liter)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                         ON CONFLICT (report_date, schedule_entry_id)
                         DO UPDATE SET
                             bills_5000=EXCLUDED.bills_5000, bills_2000=EXCLUDED.bills_2000,
@@ -1379,6 +1406,9 @@ def handler(event: dict, context) -> dict:
                             coins_10=EXCLUDED.coins_10, coins_5=EXCLUDED.coins_5,
                             coins_2=EXCLUDED.coins_2, coins_1=EXCLUDED.coins_1,
                             cashless_amount=EXCLUDED.cashless_amount,
+                            fuel_cash_amount=EXCLUDED.fuel_cash_amount,
+                            fuel_liters=EXCLUDED.fuel_liters,
+                            fuel_price_per_liter=EXCLUDED.fuel_price_per_liter,
                             notes=EXCLUDED.notes, updated_at=NOW()
                         RETURNING *
                     """, (
@@ -1398,6 +1428,7 @@ def handler(event: dict, context) -> dict:
                         bool(body.get("is_overtime", False)),
                         body.get("notes") or None,
                         body.get("created_by") or None,
+                        fuel_cash, fuel_liters, fuel_price_per_liter,
                     ))
                     conn.commit()
                     row = dict(cur.fetchone())
@@ -1858,6 +1889,115 @@ def handler(event: dict, context) -> dict:
                     cur.execute("UPDATE staff SET is_active = FALSE, updated_at=NOW() WHERE id = %s", (item_id,))
                     conn.commit()
                     return ok({"deleted": True})
+
+    # --- HR_IMPORT: импорт сотрудников из 1С (CSV) ---
+    if resource == "hr_import":
+        if method == "POST":
+            import csv, io, base64
+            file_data = body.get("file_data", "")
+            file_name = body.get("file_name", "import.csv")
+            created_by = body.get("created_by") or None
+            # Декодируем base64
+            try:
+                raw = base64.b64decode(file_data).decode("utf-8-sig")
+            except Exception:
+                return err("Ошибка декодирования файла")
+            # Определяем разделитель
+            sniffer = csv.Sniffer()
+            try:
+                dialect = sniffer.sniff(raw[:2048], delimiters=",;\t|")
+            except Exception:
+                dialect = csv.excel  # type: ignore
+            reader = csv.DictReader(io.StringIO(raw), dialect=dialect)
+            rows_data = list(reader)
+            # Маппинг заголовков из 1С к полям staff/drivers
+            FIELD_MAP = {
+                "фио": "full_name", "ф.и.о.": "full_name", "наименование": "full_name",
+                "должность": "position", "должностьнаименование": "position",
+                "телефон": "phone", "мобильный": "phone", "мобтелефон": "phone",
+                "датарождения": "birth_date", "дата рождения": "birth_date",
+                "снилс": "snils", "инн": "inn",
+                "организация": "organization", "организациянаименование": "organization",
+                "датаприема": "hire_date", "датаприёма": "hire_date", "дата приема": "hire_date",
+                "датаувольнения": "fire_date", "дата увольнения": "fire_date",
+                "серияпаспорта": "passport_series", "номерпаспорта": "passport_number",
+                "паспорт кем выдан": "passport_issued_by", "адрес": "address",
+            }
+            def normalize_key(k):
+                return k.lower().replace(" ", "").replace(".", "").replace("_", "")
+            imported = 0
+            errors_list = []
+            DRIVER_POSITIONS = {"водитель", "водительавтобуса", "driver"}
+            CONDUCTOR_POSITIONS = {"кондуктор", "conductor"}
+            with get_conn() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    for i, row in enumerate(rows_data):
+                        mapped = {}
+                        for orig_key, val in row.items():
+                            nk = normalize_key(orig_key or "")
+                            if nk in FIELD_MAP:
+                                mapped[FIELD_MAP[nk]] = (val or "").strip() or None
+                        if not mapped.get("full_name"):
+                            errors_list.append(f"Строка {i+2}: нет ФИО")
+                            continue
+                        pos_raw = normalize_key(mapped.get("position") or "")
+                        try:
+                            if pos_raw in DRIVER_POSITIONS:
+                                cur.execute("""
+                                    INSERT INTO drivers (full_name, phone, birth_date, snils, inn)
+                                    VALUES (%s, %s, %s, %s, %s)
+                                    ON CONFLICT DO NOTHING
+                                """, (mapped.get("full_name"), mapped.get("phone"),
+                                      mapped.get("birth_date") or None, mapped.get("snils"), mapped.get("inn")))
+                            elif pos_raw in CONDUCTOR_POSITIONS:
+                                cur.execute("""
+                                    INSERT INTO conductors (full_name, phone)
+                                    VALUES (%s, %s)
+                                    ON CONFLICT DO NOTHING
+                                """, (mapped.get("full_name"), mapped.get("phone")))
+                            else:
+                                position = mapped.get("position") or "other"
+                                cur.execute("""
+                                    INSERT INTO staff (full_name, position, phone, birth_date, snils, inn,
+                                        passport_series, passport_number, passport_issued_by, address,
+                                        hire_date, fire_date, organization)
+                                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                    ON CONFLICT DO NOTHING
+                                """, (
+                                    mapped.get("full_name"), position[:50],
+                                    mapped.get("phone"), mapped.get("birth_date") or None,
+                                    mapped.get("snils"), mapped.get("inn"),
+                                    mapped.get("passport_series"), mapped.get("passport_number"),
+                                    mapped.get("passport_issued_by"), mapped.get("address"),
+                                    mapped.get("hire_date") or None, mapped.get("fire_date") or None,
+                                    mapped.get("organization"),
+                                ))
+                            imported += 1
+                        except Exception as ex:
+                            errors_list.append(f"Строка {i+2}: {str(ex)[:80]}")
+                    conn.commit()
+                    # Сохраняем лог импорта
+                    log_text = "\n".join(errors_list) if errors_list else "Без ошибок"
+                    cur.execute("""
+                        INSERT INTO hr_imports (file_name, total_rows, imported_rows, errors, status, log, created_by)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id, import_date
+                    """, (file_name, len(rows_data), imported, len(errors_list),
+                          "done" if not errors_list else "partial", log_text, created_by))
+                    conn.commit()
+                    result_row = dict(cur.fetchone())
+            return ok({
+                "imported": imported,
+                "total": len(rows_data),
+                "errors": len(errors_list),
+                "error_details": errors_list[:20],
+                "import_id": result_row["id"],
+                "import_date": str(result_row["import_date"]),
+            })
+        if method == "GET":
+            with get_conn() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("SELECT * FROM hr_imports ORDER BY import_date DESC LIMIT 20")
+                    return ok(list(cur.fetchall()))
 
     # --- BANK_TRANSACTIONS: банковские транзакции / импорт из 1С ---
     if resource == "bank_transactions":

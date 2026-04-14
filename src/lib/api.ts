@@ -295,6 +295,10 @@ export const api = {
   deleteAccident: (id: number) => req("DELETE", "accidents", undefined, { id: String(id) }),
   uploadAccidentDoc: (data: object) => req("POST", "accident_upload", data),
 
+  // HR Import (1С)
+  importHrFromCsv: (data: object) => req("POST", "hr_import", data),
+  getHrImports: () => req("GET", "hr_import"),
+
   // SMS уведомления
   sendScheduleSms: (data: object) => smsReq("POST", "send_schedule", data),
   sendBirthdaySms: (data: object) => smsReq("POST", "send_birthday", data),
