@@ -77,11 +77,15 @@ def handler(event: dict, context) -> dict:
 
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT * FROM users WHERE username = %s AND is_active = true", (username,))
+                if not password:
+                    return err("Введите пароль", 400)
+                cur.execute(
+                    "SELECT * FROM users WHERE username = %s AND is_active = true AND password_hash = %s",
+                    (username, hash_password(password))
+                )
                 user = cur.fetchone()
-                # Временно: пароль не проверяется
                 if not user:
-                    return err("Пользователь не найден", 401)
+                    return err("Неверный логин или пароль", 401)
 
                 token = secrets.token_hex(32)
                 expires = datetime.now() + timedelta(days=30)
@@ -139,7 +143,7 @@ def handler(event: dict, context) -> dict:
                     role = body.get("role", "dispatcher")
                     if not username or not password or not full_name:
                         return err("Заполните все поля")
-                    valid_roles = ["admin", "dispatcher", "mechanic", "hr", "accountant"]
+                    valid_roles = ["admin", "dispatcher", "mechanic", "hr", "accountant", "cashier", "repair_mechanic", "hr_head"]
                     if role not in valid_roles:
                         return err("Недопустимая роль")
                     cur.execute("SELECT id FROM users WHERE username = %s", (username,))
