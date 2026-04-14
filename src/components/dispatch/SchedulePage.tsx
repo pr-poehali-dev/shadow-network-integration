@@ -467,6 +467,17 @@ export default function SchedulePage() {
                                   <span>Продано билетов <span className="text-neutral-400">(по {ticketPrice} ₽)</span>:</span>
                                   <span className="font-bold text-neutral-900 text-sm">{calcTickets ?? "—"}</span>
                                 </div>
+                                <div className="pt-1 border-t border-neutral-200">
+                                  <label className="text-xs text-neutral-500 block mb-0.5">
+                                    Цена топлива, ₽/л
+                                    {entry.fuel_price_override != null
+                                      ? <span className="ml-1 text-amber-600">(индивидуальная)</span>
+                                      : <span className="ml-1 text-neutral-400">(базовая из настроек)</span>
+                                    }
+                                  </label>
+                                  <NumInput value={entry.fuel_price_override} placeholder="по умолчанию"
+                                    onSave={v => handleUpdate(entry, { fuel_price_override: v ? Number(v) : null })} />
+                                </div>
                               </div>
                             )}
                           </td>
