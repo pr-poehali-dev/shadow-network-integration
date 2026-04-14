@@ -1177,15 +1177,36 @@ def handler(event: dict, context) -> dict:
                 )
                 existing_ids = {r["schedule_entry_id"] for r in cur.fetchall() if r["schedule_entry_id"]}
 
+                # Для каждого бортового номера ищем последнее значение odometer_arrival
+                # за предыдущие дни — используем его как odometer_departure нового дня
+                board_numbers = list({row["board_number"] for row in schedule if row.get("board_number")})
+                prev_odometers: dict = {}
+                if board_numbers:
+                    placeholders = ",".join(["%s"] * len(board_numbers))
+                    cur.execute(f"""
+                        SELECT DISTINCT ON (board_number)
+                            board_number,
+                            odometer_arrival
+                        FROM vehicle_release_journal
+                        WHERE board_number IN ({placeholders})
+                          AND work_date < %s
+                          AND odometer_arrival IS NOT NULL
+                        ORDER BY board_number, work_date DESC, id DESC
+                    """, board_numbers + [work_date])
+                    for rec in cur.fetchall():
+                        if rec["board_number"] and rec["odometer_arrival"]:
+                            prev_odometers[rec["board_number"]] = int(rec["odometer_arrival"])
+
                 created = []
                 for row in schedule:
                     if row["id"] in existing_ids:
                         continue
+                    prev_odo = prev_odometers.get(row["board_number"]) if row.get("board_number") else None
                     cur.execute("""
                         INSERT INTO vehicle_release_journal
                             (work_date, organization, schedule_entry_id, route_id, route_number, graph_number,
-                             board_number, gov_number, driver_name)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
+                             board_number, gov_number, driver_name, odometer_departure)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
                     """, (
                         work_date,
                         row["organization"],
@@ -1196,6 +1217,7 @@ def handler(event: dict, context) -> dict:
                         row["board_number"],
                         row["gov_number"],
                         row["driver_name"],
+                        prev_odo,
                     ))
                     r = cur.fetchone()
                     if r:

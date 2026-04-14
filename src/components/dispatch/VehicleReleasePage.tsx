@@ -189,9 +189,13 @@ export default function VehicleReleasePage() {
   };
 
   const saveEdit = async (id: number) => {
-    await api.updateVehicleRelease(id, editForm);
+    // Оптимистичное обновление — сразу отображаем изменения без ожидания сервера
+    setRecords(prev => prev.map(r =>
+      r.id === id ? { ...r, ...editForm } as VehicleRecord : r
+    ));
     setEditingId(null);
-    loadRecords();
+    // Фоновое сохранение без блокировки UI
+    api.updateVehicleRelease(id, editForm).catch(() => loadRecords());
   };
 
   const handleDelete = async (id: number) => {
@@ -321,7 +325,16 @@ export default function VehicleReleasePage() {
                         <input type="number" value={editForm.odometer_departure as number ?? ""}
                           onChange={e => setF("odometer_departure", e.target.value ? Number(e.target.value) : null)}
                           placeholder="км"
-                          className="border border-neutral-300 rounded px-2 py-1 text-sm w-full focus:outline-none" />
+                          className={`border rounded px-2 py-1 text-sm w-full focus:outline-none ${
+                            r.odometer_departure && !r.odometer_arrival
+                              ? "border-blue-300 bg-blue-50"
+                              : "border-neutral-300"
+                          }`}
+                          title={r.odometer_departure && !r.odometer_arrival ? "Значение перенесено с предыдущего дня" : ""}
+                        />
+                        {r.odometer_departure != null && r.odometer_arrival == null && (
+                          <div className="text-xs text-blue-500 mt-0.5">← предыдущий день</div>
+                        )}
                       </td>
                       <td className="px-3 py-2 bg-orange-50/40">
                         <input type="time" value={editForm.arrival_time as string ?? ""}
