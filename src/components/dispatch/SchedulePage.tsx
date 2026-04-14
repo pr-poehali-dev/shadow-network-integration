@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { catalogCache } from "@/lib/catalogCache";
 import { useAuth } from "@/lib/auth";
 import Icon from "@/components/ui/icon";
-import { Entry, Route, Bus, Driver, Conductor, Terminal, today } from "./scheduleTypes";
+import { Entry, Route, Bus, Driver, Conductor, Terminal, today, fmtMoney } from "./scheduleTypes";
 import { handlePrint } from "./scheduleWaybill";
 import ScheduleRouteTable from "./ScheduleRouteTable";
 import ScheduleSuggest from "./ScheduleSuggest";
@@ -87,6 +87,14 @@ export default function SchedulePage({ onAccidentCreated }: { onAccidentCreated?
   const [addRouteId, setAddRouteId] = useState<string>("");
   const [addGraphNum, setAddGraphNum] = useState<string>("");
   const [adding, setAdding] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [ticketPrice, setTicketPrice] = useState(33);
+
+  useEffect(() => {
+    catalogCache.getSettings().then(s => {
+      if (s?.ticket_price) setTicketPrice(Number(s.ticket_price));
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -244,7 +252,18 @@ export default function SchedulePage({ onAccidentCreated }: { onAccidentCreated?
     return result;
   }, [entries]);
 
-  const dayAbsences = useMemo(() => entries.filter(e => e.absence_reason).length, [entries]);
+  // Полная выручка: revenue_total если заполнен, иначе cashless (безналичные через терминал)
+  const calcEntryTotal = useCallback((e: Entry) => Number(e.revenue_total ?? e.revenue_cashless ?? 0), []);
+  const calcEntryTickets = useCallback((e: Entry) => {
+    const t = calcEntryTotal(e);
+    return t ? Math.floor(t / ticketPrice) : 0;
+  }, [calcEntryTotal, ticketPrice]);
+
+  const { dayTotalCashless, dayTotalFuel, dayAbsences } = useMemo(() => ({
+    dayTotalCashless: entries.reduce((s, e) => s + Number(e.revenue_cashless ?? 0), 0),
+    dayTotalFuel: entries.reduce((s, e) => s + Number(e.fuel_spent ?? 0), 0),
+    dayAbsences: entries.filter(e => e.absence_reason).length,
+  }), [entries]);
 
   // Семь дней недели начиная с понедельника текущей недели (относительно выбранной даты)
   const weekDays = useMemo(() => {
@@ -401,19 +420,30 @@ export default function SchedulePage({ onAccidentCreated }: { onAccidentCreated?
                 drivers={drivers}
                 conductors={conductors}
                 orgTerminals={orgTerminals}
+                ticketPrice={ticketPrice}
+                expandedId={expandedId}
+                setExpandedId={setExpandedId}
                 onUpdate={handleUpdate}
                 onSelectUpdate={handleSelectUpdate}
                 onDelete={handleDelete}
                 onAccident={entry => setAccidentEntry(entry)}
                 canEdit={canEdit}
+                calcEntryTotal={calcEntryTotal}
+                calcEntryTickets={calcEntryTickets}
               />
             );
           })}
 
-          {dayAbsences > 0 && (
-            <div className="border border-red-200 rounded bg-red-50 text-red-700 px-5 py-3 flex items-center gap-2 text-sm">
-              <Icon name="UserX" size={15} />
-              <span className="font-semibold">Неявок за день: {dayAbsences}</span>
+          {entries.length > 0 && (
+            <div className="border border-neutral-300 rounded bg-neutral-900 text-white px-5 py-3 flex flex-wrap items-center gap-4 text-sm">
+              <span className="font-bold uppercase tracking-wide">Итого за день:</span>
+              {dayTotalCashless > 0 && <span className="text-lg font-bold">безнал. {Math.round(dayTotalCashless)} ₽</span>}
+              {dayTotalFuel > 0 && <span>{dayTotalFuel.toFixed(1)} л</span>}
+              {dayAbsences > 0 && (
+                <span className="bg-red-500 text-white px-2 py-0.5 rounded text-xs font-semibold">
+                  неявок: {dayAbsences}
+                </span>
+              )}
             </div>
           )}
         </div>

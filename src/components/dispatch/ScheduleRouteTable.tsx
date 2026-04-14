@@ -23,17 +23,24 @@ interface Props {
   drivers: { id: number; full_name: string }[];
   conductors: Conductor[];
   orgTerminals: Terminal[];
+  ticketPrice: number;
+  expandedId: number | null;
+  setExpandedId: (id: number | null) => void;
   onUpdate: (entry: Entry, fields: Record<string, unknown>) => void;
   onSelectUpdate: (entry: Entry, field: string, value: string) => void;
   onDelete: (id: number) => void;
   onAccident?: (entry: Entry) => void;
   canEdit?: boolean;
+  calcEntryTotal: (e: Entry) => number;
+  calcEntryTickets: (e: Entry) => number;
 }
 
 export default function ScheduleRouteTable({
   routeNumber, routeName, maxGraphs, minVehicles, requiredTrips, items, date,
   buses, drivers, conductors, orgTerminals,
+  ticketPrice, expandedId, setExpandedId,
   onUpdate, onSelectUpdate, onDelete, onAccident, canEdit = true,
+  calcEntryTotal, calcEntryTickets,
 }: Props) {
   const activeVehicles = items.filter(e => !e.absence_reason).length;
   const belowMin = minVehicles != null && activeVehicles < minVehicles;
@@ -91,8 +98,11 @@ export default function ScheduleRouteTable({
             <th className="px-4 py-2 text-left">Водитель</th>
             <th className="px-4 py-2 text-left">Кондуктор</th>
             <th className="px-4 py-2 text-left">Терминал</th>
+            <th className="px-4 py-2 text-right w-24">ДТ, л</th>
             <th className="px-4 py-2 text-center w-20">Подработка</th>
             <th className="px-4 py-2 text-left w-36">Неявка</th>
+            <th className="px-4 py-2 text-center w-20">Билеты</th>
+            <th className="px-4 py-2 text-right w-28">Безнал, ₽</th>
             <th className="px-4 py-2 w-10"></th>
           </tr>
         </thead>
@@ -106,6 +116,9 @@ export default function ScheduleRouteTable({
               drivers={drivers}
               conductors={conductors}
               orgTerminals={orgTerminals}
+              ticketPrice={ticketPrice}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
               onUpdate={onUpdate}
               onSelectUpdate={onSelectUpdate}
               onDelete={onDelete}
@@ -114,17 +127,21 @@ export default function ScheduleRouteTable({
             />
           ))}
           {items.length > 1 && (() => {
+            const rCashless = items.reduce((s, e) => s + Number(e.revenue_cashless ?? 0), 0);
+            const rFuel = items.reduce((s, e) => s + Number(e.fuel_spent ?? 0), 0);
             const absences = items.filter(e => e.absence_reason).length;
-            return absences > 0 ? (
+            return (
               <tr className="bg-neutral-100 border-t border-neutral-200 font-semibold text-xs text-neutral-700">
-                <td className="px-4 py-2" colSpan={7}>
+                <td className="px-4 py-2" colSpan={10}>
                   <span className="inline-flex flex-wrap items-center gap-3">
                     <span>Итого м. {routeNumber}:</span>
-                    <span className="text-red-600">неявок: {absences}</span>
+                    {rCashless > 0 && <span>безнал. {Math.round(rCashless)} ₽</span>}
+                    {rFuel > 0 && <span className="font-normal text-neutral-500">{rFuel.toFixed(1)} л</span>}
+                    {absences > 0 && <span className="text-red-600">неявок: {absences}</span>}
                   </span>
                 </td>
               </tr>
-            ) : null;
+            );
           })()}
         </tbody>
       </table>
