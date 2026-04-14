@@ -186,4 +186,10 @@ export const api = {
   deleteVehicleRelease: (id: number) => req("DELETE", "vehicle_release", undefined, { id: String(id) }),
   initVehicleRelease: (work_date: string, organization?: string) =>
     req("POST", "vehicle_release_init", { work_date, ...(organization ? { organization } : {}) }),
+
+  // Cash operations
+  getCash: (params?: Record<string, string>) => req("GET", "cash", undefined, params),
+  createCash: (data: object) => req("POST", "cash", data),
+  updateCash: (id: number, data: object) => req("PUT", "cash", data, { id: String(id) }),
+  deleteCash: (id: number) => req("DELETE", "cash", undefined, { id: String(id) }),
 };

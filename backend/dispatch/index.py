@@ -1074,4 +1074,107 @@ def handler(event: dict, context) -> dict:
                 conn.commit()
                 return ok({"created": len(created), "records": created})
 
+    # --- CASH: учёт наличных средств ---
+    if resource == "cash":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    date_from = params.get("date_from")
+                    date_to = params.get("date_to")
+                    category = params.get("category")
+                    conditions = []
+                    values = []
+                    if date_from:
+                        conditions.append("operation_date >= %s")
+                        values.append(date_from)
+                    if date_to:
+                        conditions.append("operation_date <= %s")
+                        values.append(date_to)
+                    if category:
+                        conditions.append("category = %s")
+                        values.append(category)
+                    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+                    cur.execute(f"""
+                        SELECT * FROM cash_operations
+                        {where}
+                        ORDER BY operation_date DESC, created_at DESC
+                    """, values)
+                    rows = list(cur.fetchall())
+                    # итоги
+                    cur.execute(f"""
+                        SELECT
+                            COALESCE(SUM(amount) FILTER (WHERE operation_type = 'income'), 0) as total_income,
+                            COALESCE(SUM(amount) FILTER (WHERE operation_type = 'expense'), 0) as total_expense
+                        FROM cash_operations {where}
+                    """, values)
+                    totals = dict(cur.fetchone())
+                    return ok({"items": rows, "totals": totals})
+
+                if method == "POST":
+                    required = ["operation_type", "category", "amount", "operation_date"]
+                    for f in required:
+                        if not body.get(f):
+                            return err(f"{f} required")
+                    cur.execute("""
+                        INSERT INTO cash_operations
+                            (operation_date, operation_type, category, amount, description,
+                             created_by, organization, employee_name, loan_term_days, monthly_deduction,
+                             recipient_name, purpose, salary_period)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING *
+                    """, (
+                        body.get("operation_date"),
+                        body.get("operation_type"),
+                        body.get("category"),
+                        float(body.get("amount")),
+                        body.get("description") or None,
+                        body.get("created_by") or None,
+                        body.get("organization") or None,
+                        body.get("employee_name") or None,
+                        int(body.get("loan_term_days")) if body.get("loan_term_days") else None,
+                        float(body.get("monthly_deduction")) if body.get("monthly_deduction") else None,
+                        body.get("recipient_name") or None,
+                        body.get("purpose") or None,
+                        body.get("salary_period") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    if not item_id:
+                        return err("id required")
+                    cur.execute("""
+                        UPDATE cash_operations SET
+                            operation_date=%s, operation_type=%s, category=%s, amount=%s,
+                            description=%s, organization=%s, employee_name=%s, loan_term_days=%s,
+                            monthly_deduction=%s, recipient_name=%s, purpose=%s, salary_period=%s
+                        WHERE id=%s RETURNING *
+                    """, (
+                        body.get("operation_date"),
+                        body.get("operation_type"),
+                        body.get("category"),
+                        float(body.get("amount")),
+                        body.get("description") or None,
+                        body.get("organization") or None,
+                        body.get("employee_name") or None,
+                        int(body.get("loan_term_days")) if body.get("loan_term_days") else None,
+                        float(body.get("monthly_deduction")) if body.get("monthly_deduction") else None,
+                        body.get("recipient_name") or None,
+                        body.get("purpose") or None,
+                        body.get("salary_period") or None,
+                        item_id,
+                    ))
+                    conn.commit()
+                    row = cur.fetchone()
+                    if not row:
+                        return err("Not found", 404)
+                    return ok(dict(row))
+
+                if method == "DELETE":
+                    if not item_id:
+                        return err("id required")
+                    cur.execute("DELETE FROM cash_operations WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
     return err("Not found", 404)

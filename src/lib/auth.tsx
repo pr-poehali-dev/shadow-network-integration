@@ -3,7 +3,7 @@ import { api } from "./api";
 
 export type Role = "admin" | "dispatcher" | "mechanic" | "hr" | "accountant";
 
-export type TabId = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors" | "terminals" | "settings" | "users" | "salary" | "mechanics" | "journal_medical" | "journal_release" | "company_card";
+export type TabId = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "drivers" | "conductors" | "terminals" | "settings" | "users" | "salary" | "mechanics" | "journal_medical" | "journal_release" | "company_card" | "cash";
 
 export interface User {
   id: number;
@@ -30,11 +30,11 @@ const AuthContext = createContext<AuthCtx>({
 });
 
 const DEFAULT_ROLE_TABS: Record<Role, TabId[]> = {
-  admin: ["schedule", "summary", "busdocs", "routes", "buses", "drivers", "conductors", "terminals", "salary", "mechanics", "journal_medical", "journal_release", "company_card", "settings", "users"],
+  admin: ["schedule", "summary", "busdocs", "routes", "buses", "drivers", "conductors", "terminals", "salary", "mechanics", "journal_medical", "journal_release", "company_card", "cash", "settings", "users"],
   dispatcher: ["schedule", "summary", "busdocs", "journal_medical", "journal_release"],
   mechanic: ["busdocs", "buses", "mechanics", "journal_release"],
   hr: ["drivers", "conductors"],
-  accountant: ["summary", "salary"],
+  accountant: ["summary", "salary", "cash"],
 };
 
 export const ALL_TABS: { id: TabId; label: string }[] = [
@@ -50,6 +50,7 @@ export const ALL_TABS: { id: TabId; label: string }[] = [
   { id: "journal_medical", label: "Журнал медика" },
   { id: "journal_release", label: "Журнал выпуска ТС" },
   { id: "company_card", label: "Карточка предприятия" },
+  { id: "cash", label: "Наличные" },
   { id: "settings", label: "Настройки" },
   { id: "users", label: "Пользователи" },
 ];

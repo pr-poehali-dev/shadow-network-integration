@@ -97,6 +97,13 @@
       "path": "/?resource=vehicle_release",
       "expectedStatus": 400,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET cash operations",
+      "method": "GET",
+      "path": "/?resource=cash",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
     }
   ]
 }
