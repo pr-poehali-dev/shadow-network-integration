@@ -16,6 +16,9 @@ export default function SettingsPage() {
     route6_fixed_salary: "7000",
     lunch_no_conductor: "150",
     lunch_with_conductor: "300",
+    garage_daily_expenses: "5000",
+    duty_car_shift_pay: "0",
+    duty_car_fuel_liters: "0",
   });
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -32,14 +35,20 @@ export default function SettingsPage() {
         route6_fixed_salary: s.route6_fixed_salary ?? "7000",
         lunch_no_conductor: s.lunch_no_conductor ?? "150",
         lunch_with_conductor: s.lunch_with_conductor ?? "300",
+        garage_daily_expenses: s.garage_daily_expenses ?? "5000",
+        duty_car_shift_pay: s.duty_car_shift_pay ?? "0",
+        duty_car_fuel_liters: s.duty_car_fuel_liters ?? "0",
       });
       setLoading(false);
     });
   }, []);
 
+  const ALLOW_ZERO = new Set(["duty_car_shift_pay", "duty_car_fuel_liters"]);
+
   const handleSave = async (key: string) => {
     const value = values[key];
-    if (!value || Number(value) <= 0) return;
+    if (value === "" || value === undefined) return;
+    if (!ALLOW_ZERO.has(key) && Number(value) <= 0) return;
     setSaving(key);
     await api.updateSetting(key, value);
     catalogCache.invalidateSettings();
@@ -273,6 +282,110 @@ export default function SettingsPage() {
               </div>
               {saved === "lunch_with_conductor" && (
                 <div className="mt-2 text-sm text-green-600 flex items-center gap-1.5"><Icon name="Check" size={14} /> Сохранено</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Хознужды гаража */}
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Icon name="Warehouse" size={16} className="text-neutral-500" />
+            <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Хознужды гаража</span>
+          </div>
+          <p className="text-xs text-neutral-400 mb-3">
+            Фиксированная сумма, ежедневно вычитаемая из кассовой выручки на хозяйственные нужды гаража.
+          </p>
+          <div className="border border-neutral-200 rounded p-5">
+            <h3 className="font-semibold text-neutral-900 mb-1">Ежедневный расход на хознужды</h3>
+            <p className="text-sm text-neutral-500 mb-4">Сумма резервируется каждый день независимо от выручки.</p>
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <label className="text-xs text-neutral-500 block mb-1">Сумма, ₽/день</label>
+                <input
+                  type="number" step="100" min="0"
+                  value={values.garage_daily_expenses}
+                  onChange={e => setVal("garage_daily_expenses", e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") handleSave("garage_daily_expenses"); }}
+                  placeholder="5000"
+                  className="border border-neutral-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-neutral-600"
+                />
+              </div>
+              <button onClick={() => handleSave("garage_daily_expenses")}
+                disabled={saving === "garage_daily_expenses" || !values.garage_daily_expenses}
+                className="bg-neutral-900 text-white px-5 py-2 text-sm rounded hover:bg-neutral-700 transition-colors disabled:opacity-50 cursor-pointer">
+                {saving === "garage_daily_expenses" ? "Сохраняю..." : "Сохранить"}
+              </button>
+            </div>
+            {saved === "garage_daily_expenses" && (
+              <div className="mt-2 text-sm text-green-600 flex items-center gap-1.5"><Icon name="Check" size={14} /> Сохранено</div>
+            )}
+          </div>
+        </div>
+
+        {/* Дежурный автомобиль */}
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Icon name="Car" size={16} className="text-neutral-500" />
+            <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Дежурный автомобиль</span>
+          </div>
+          <p className="text-xs text-neutral-400 mb-3">
+            Ежедневные расходы на дежурный автомобиль (оплата водителя + топливо). Вычитаются из кассовой выручки каждый день.
+          </p>
+          <div className="flex flex-col gap-4">
+            <div className="border border-neutral-200 rounded p-5">
+              <h3 className="font-semibold text-neutral-900 mb-1">Оплата смены дежурного водителя</h3>
+              <p className="text-sm text-neutral-500 mb-4">Фиксированная сумма за смену. Установите 0, если дежурки нет.</p>
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-neutral-500 block mb-1">Оплата за смену, ₽</label>
+                  <input
+                    type="number" step="50" min="0"
+                    value={values.duty_car_shift_pay}
+                    onChange={e => setVal("duty_car_shift_pay", e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") handleSave("duty_car_shift_pay"); }}
+                    placeholder="0"
+                    className="border border-neutral-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-neutral-600"
+                  />
+                </div>
+                <button onClick={() => handleSave("duty_car_shift_pay")}
+                  disabled={saving === "duty_car_shift_pay" || values.duty_car_shift_pay === ""}
+                  className="bg-neutral-900 text-white px-5 py-2 text-sm rounded hover:bg-neutral-700 transition-colors disabled:opacity-50 cursor-pointer">
+                  {saving === "duty_car_shift_pay" ? "Сохраняю..." : "Сохранить"}
+                </button>
+              </div>
+              {saved === "duty_car_shift_pay" && (
+                <div className="mt-2 text-sm text-green-600 flex items-center gap-1.5"><Icon name="Check" size={14} /> Сохранено</div>
+              )}
+            </div>
+            <div className="border border-neutral-200 rounded p-5">
+              <h3 className="font-semibold text-neutral-900 mb-1">Расход топлива дежурного автомобиля</h3>
+              <p className="text-sm text-neutral-500 mb-4">Количество литров ДТ в день. Стоимость рассчитывается по базовой цене топлива из раздела «Тарифы».</p>
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-neutral-500 block mb-1">Литров в день, л</label>
+                  <input
+                    type="number" step="1" min="0"
+                    value={values.duty_car_fuel_liters}
+                    onChange={e => setVal("duty_car_fuel_liters", e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") handleSave("duty_car_fuel_liters"); }}
+                    placeholder="0"
+                    className="border border-neutral-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-neutral-600"
+                  />
+                </div>
+                <button onClick={() => handleSave("duty_car_fuel_liters")}
+                  disabled={saving === "duty_car_fuel_liters" || values.duty_car_fuel_liters === ""}
+                  className="bg-neutral-900 text-white px-5 py-2 text-sm rounded hover:bg-neutral-700 transition-colors disabled:opacity-50 cursor-pointer">
+                  {saving === "duty_car_fuel_liters" ? "Сохраняю..." : "Сохранить"}
+                </button>
+              </div>
+              {saved === "duty_car_fuel_liters" && (
+                <div className="mt-2 text-sm text-green-600 flex items-center gap-1.5"><Icon name="Check" size={14} /> Сохранено</div>
+              )}
+              {Number(values.duty_car_fuel_liters) > 0 && Number(values.fuel_price) > 0 && (
+                <div className="mt-2 text-xs text-neutral-500 bg-neutral-50 rounded px-3 py-2">
+                  Стоимость: {Number(values.duty_car_fuel_liters)} л × {Number(values.fuel_price)} ₽ = <b>{(Number(values.duty_car_fuel_liters) * Number(values.fuel_price)).toLocaleString("ru-RU")} ₽/день</b>
+                </div>
               )}
             </div>
           </div>

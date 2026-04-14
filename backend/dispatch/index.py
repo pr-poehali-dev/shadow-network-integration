@@ -1380,44 +1380,39 @@ def handler(event: dict, context) -> dict:
                     if not work_date:
                         return err("date required")
                     org = params.get("organization")
+                    # Загружаем настройки (обед, дежурка, хознужды)
+                    cur.execute("SELECT key, value FROM settings WHERE key IN ('lunch_no_conductor','lunch_with_conductor','garage_daily_expenses','duty_car_shift_pay','duty_car_fuel_liters','fuel_price')")
+                    sett = {r["key"]: r["value"] for r in cur.fetchall()}
+                    lunch_no_c = float(sett.get("lunch_no_conductor") or 150)
+                    lunch_with_c = float(sett.get("lunch_with_conductor") or 300)
+                    garage_exp = float(sett.get("garage_daily_expenses") or 5000)
+                    duty_pay = float(sett.get("duty_car_shift_pay") or 0)
+                    duty_fuel = float(sett.get("duty_car_fuel_liters") or 0)
+                    fuel_price = float(sett.get("fuel_price") or 72)
+                    SEL_CASHIER = """
+                        SELECT se.id as schedule_entry_id, se.graph_number, se.is_overtime,
+                               se.tickets_sold, se.fuel_spent, se.revenue_cashless,
+                               r.number as route_number, r.organization,
+                               b.board_number, b.gov_number,
+                               d.id as driver_id, d.full_name as driver_name,
+                               c.full_name as conductor_name,
+                               cr.id as report_id,
+                               cr.bills_5000, cr.bills_2000, cr.bills_1000, cr.bills_500,
+                               cr.bills_200, cr.bills_100, cr.bills_50, cr.bills_10,
+                               cr.coins_10, cr.coins_5, cr.coins_2, cr.coins_1,
+                               COALESCE(cr.cashless_amount, se.revenue_cashless, 0) as cashless_amount,
+                               cr.fuel_cash_amount, cr.fuel_liters, cr.notes, cr.updated_at
+                        FROM schedule_entries se
+                        JOIN routes r ON r.id = se.route_id
+                        LEFT JOIN buses b ON b.id = se.bus_id
+                        LEFT JOIN drivers d ON d.id = se.driver_id
+                        LEFT JOIN conductors c ON c.id = se.conductor_id
+                        LEFT JOIN cashier_reports cr ON cr.schedule_entry_id = se.id AND cr.report_date = se.work_date
+                    """
                     if org:
-                        cur.execute("""
-                            SELECT se.id as schedule_entry_id, se.graph_number, se.is_overtime,
-                                   r.number as route_number, r.organization,
-                                   b.board_number, b.gov_number,
-                                   d.id as driver_id, d.full_name as driver_name,
-                                   cr.id as report_id,
-                                   cr.bills_5000, cr.bills_2000, cr.bills_1000, cr.bills_500,
-                                   cr.bills_200, cr.bills_100, cr.bills_50, cr.bills_10,
-                                   cr.coins_10, cr.coins_5, cr.coins_2, cr.coins_1,
-                                   cr.cashless_amount, cr.notes, cr.updated_at
-                            FROM schedule_entries se
-                            JOIN routes r ON r.id = se.route_id
-                            LEFT JOIN buses b ON b.id = se.bus_id
-                            LEFT JOIN drivers d ON d.id = se.driver_id
-                            LEFT JOIN cashier_reports cr ON cr.schedule_entry_id = se.id AND cr.report_date = se.work_date
-                            WHERE se.work_date = %s AND r.organization = %s
-                            ORDER BY r.number, se.graph_number NULLS LAST
-                        """, (work_date, org))
+                        cur.execute(SEL_CASHIER + " WHERE se.work_date = %s AND r.organization = %s ORDER BY r.number, se.graph_number NULLS LAST", (work_date, org))
                     else:
-                        cur.execute("""
-                            SELECT se.id as schedule_entry_id, se.graph_number, se.is_overtime,
-                                   r.number as route_number, r.organization,
-                                   b.board_number, b.gov_number,
-                                   d.id as driver_id, d.full_name as driver_name,
-                                   cr.id as report_id,
-                                   cr.bills_5000, cr.bills_2000, cr.bills_1000, cr.bills_500,
-                                   cr.bills_200, cr.bills_100, cr.bills_50, cr.bills_10,
-                                   cr.coins_10, cr.coins_5, cr.coins_2, cr.coins_1,
-                                   cr.cashless_amount, cr.notes, cr.updated_at
-                            FROM schedule_entries se
-                            JOIN routes r ON r.id = se.route_id
-                            LEFT JOIN buses b ON b.id = se.bus_id
-                            LEFT JOIN drivers d ON d.id = se.driver_id
-                            LEFT JOIN cashier_reports cr ON cr.schedule_entry_id = se.id AND cr.report_date = se.work_date
-                            WHERE se.work_date = %s
-                            ORDER BY r.organization NULLS LAST, r.number, se.graph_number NULLS LAST
-                        """, (work_date,))
+                        cur.execute(SEL_CASHIER + " WHERE se.work_date = %s ORDER BY r.organization NULLS LAST, r.number, se.graph_number NULLS LAST", (work_date,))
                     rows = list(cur.fetchall())
                     driver_ids = [r["driver_id"] for r in rows if r.get("driver_id")]
                     restrictions = {}
@@ -1437,10 +1432,32 @@ def handler(event: dict, context) -> dict:
                         d["restriction"] = restrictions.get(row.get("driver_id"))
                         cash_total = sum(int(d.get(b) or 0) * v for b, v in BILL_VALUES.items())
                         d["cash_total"] = cash_total
+                        # Обед: если есть кондуктор — оба платят lunch_with_c, иначе driver платит lunch_no_c
+                        has_conductor = bool(d.get("conductor_name"))
+                        d["lunch_amount"] = (lunch_with_c * 2) if has_conductor else lunch_no_c
+                        # Расход ДТ в деньгах
+                        fuel_liters_val = float(d.get("fuel_liters") or d.get("fuel_spent") or 0)
+                        fuel_cash_val = float(d.get("fuel_cash_amount") or 0)
+                        d["fuel_cost"] = fuel_cash_val if fuel_cash_val > 0 else round(fuel_liters_val * fuel_price, 2)
+                        d["fuel_liters_total"] = fuel_liters_val
+                        # Подработка: флаг is_overtime, сумма вычисляется отдельно по ЗП
                         result.append(d)
                     total_cash = sum(r["cash_total"] for r in result)
                     total_cashless = sum(float(r.get("cashless_amount") or 0) for r in result)
-                    return ok({"rows": result, "total_cash": total_cash, "total_cashless": total_cashless})
+                    total_lunch = sum(float(r.get("lunch_amount") or 0) for r in result)
+                    total_fuel_cost = sum(float(r.get("fuel_cost") or 0) for r in result)
+                    return ok({
+                        "rows": result,
+                        "total_cash": total_cash,
+                        "total_cashless": total_cashless,
+                        "total_lunch": total_lunch,
+                        "total_fuel_cost": total_fuel_cost,
+                        "garage_daily_expenses": garage_exp,
+                        "duty_car_shift_pay": duty_pay,
+                        "duty_car_fuel_liters": duty_fuel,
+                        "duty_car_fuel_cost": round(duty_fuel * fuel_price, 2),
+                        "fuel_price": fuel_price,
+                    })
 
                 if method == "POST":
                     eid = body.get("schedule_entry_id")

@@ -15,14 +15,32 @@ export interface ScheduleRow {
   gov_number: string | null;
   driver_id: number | null;
   driver_name: string | null;
+  conductor_name: string | null;
   is_overtime: boolean;
   cash_total: number;
   cashless_amount: number;
+  tickets_sold: number | null;
+  fuel_spent: number | null;
+  fuel_liters_total: number;
+  fuel_cost: number;
+  lunch_amount: number;
   notes: string | null;
   restriction: Restriction | null;
   bills_5000: number; bills_2000: number; bills_1000: number; bills_500: number;
   bills_200: number; bills_100: number; bills_50: number; bills_10: number;
   coins_10: number; coins_5: number; coins_2: number; coins_1: number;
+}
+
+export interface CashierSummary {
+  total_cash: number;
+  total_cashless: number;
+  total_lunch: number;
+  total_fuel_cost: number;
+  garage_daily_expenses: number;
+  duty_car_shift_pay: number;
+  duty_car_fuel_liters: number;
+  duty_car_fuel_cost: number;
+  fuel_price: number;
 }
 
 export interface CashRestriction {
