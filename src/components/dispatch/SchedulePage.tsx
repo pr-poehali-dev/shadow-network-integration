@@ -15,6 +15,7 @@ export default function SchedulePage() {
   const [conductors, setConductors] = useState<Conductor[]>([]);
   const [terminals, setTerminals] = useState<Terminal[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [addRouteId, setAddRouteId] = useState<string>("");
   const [addGraphNum, setAddGraphNum] = useState<string>("");
   const [adding, setAdding] = useState(false);
@@ -24,7 +25,7 @@ export default function SchedulePage() {
   useEffect(() => {
     catalogCache.getSettings().then(s => {
       if (s?.ticket_price) setTicketPrice(Number(s.ticket_price));
-    });
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -40,14 +41,20 @@ export default function SchedulePage() {
       setDrivers(Array.isArray(d) ? d : []);
       setConductors(Array.isArray(c) ? c : []);
       setTerminals(Array.isArray(t) ? t : []);
-    });
+    }).catch(() => setLoadError(true));
   }, []);
 
   const loadSchedule = useCallback(async (d: string) => {
     setLoading(true);
-    const data = await api.getSchedule(d);
-    setEntries(Array.isArray(data) ? data : []);
-    setLoading(false);
+    setLoadError(false);
+    try {
+      const data = await api.getSchedule(d);
+      setEntries(Array.isArray(data) ? data : []);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { loadSchedule(date); }, [date, loadSchedule]);
@@ -264,9 +271,21 @@ export default function SchedulePage() {
         </button>
       </div>
 
+      {loadError && (
+        <div className="mb-4 flex items-center gap-3 bg-red-50 border border-red-200 rounded px-4 py-3 text-sm text-red-700">
+          <Icon name="WifiOff" size={16} />
+          <span>Сервер недоступен. Данные не загружены.</span>
+          <button onClick={() => loadSchedule(date)}
+            className="ml-auto flex items-center gap-1.5 bg-red-600 text-white px-3 py-1.5 rounded text-xs hover:bg-red-700 cursor-pointer transition-colors">
+            <Icon name="RefreshCw" size={12} />
+            Повторить
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-neutral-500 text-sm py-8 text-center">Загрузка...</div>
-      ) : entries.length === 0 ? (
+      ) : entries.length === 0 && !loadError ? (
         <div className="text-neutral-400 text-sm py-8 text-center">Нет маршрутов на этот день — добавьте выше</div>
       ) : (
         <div className="flex flex-col gap-3">

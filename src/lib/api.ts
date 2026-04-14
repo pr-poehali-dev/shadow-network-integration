@@ -6,12 +6,32 @@ function getToken() {
   return localStorage.getItem("auth_token") || "";
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, timeoutMs = 8000): Promise<Response> {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (e) {
+      clearTimeout(timer);
+      if (attempt < retries - 1) {
+        await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+      } else {
+        throw e;
+      }
+    }
+  }
+  throw new Error("fetch failed after retries");
+}
+
 async function req(method: string, resource: string, body?: object, params?: Record<string, string>) {
   const url = new URL(BASE);
   url.searchParams.set("resource", resource);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithRetry(url.toString(), {
     method,
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
     body: body ? JSON.stringify(body) : undefined,
