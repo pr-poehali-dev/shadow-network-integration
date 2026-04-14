@@ -1,17 +1,8 @@
 import Icon from "@/components/ui/icon";
 import {
-  DriverSalary, ConductorSalary, DriverSalaryShift, ConductorShift,
+  DriverSalary, ConductorSalary,
   CrewRecord, fmt, calcCrewTotal, printCrewStatement,
 } from "./salaryTypes";
-
-const CREW_FIELDS = [
-  { key: "sick_leave",   label: "Больничный, ₽" },
-  { key: "advance_cash", label: "Аванс (нал.), ₽" },
-  { key: "advance_card", label: "Аванс (карта), ₽" },
-  { key: "salary_card",  label: "ЗП (карта), ₽" },
-  { key: "overtime_sum", label: "Подработка, ₽" },
-  { key: "fines",        label: "Штрафы, ₽" },
-];
 
 type EditFields = Omit<CrewRecord, "id"|"type"|"full_name"|"is_official"|"total_earned"|"shifts_count">;
 
@@ -22,8 +13,6 @@ interface Props {
   showOfficialBadge: boolean;
   month: number;
   year: number;
-  expandedId: string | null;
-  setExpandedId: (id: string | null) => void;
   getCrewEdit: (key: string) => EditFields;
   updateCrewField: (key: string, field: string, value: string) => void;
   saveCrewRecord: (key: string, personType: "driver" | "conductor", personId: number) => void;
@@ -31,153 +20,171 @@ interface Props {
   buildCrewRecords: (type: "driver" | "conductor") => CrewRecord[];
 }
 
+const cellInp = "bg-transparent border-b border-neutral-200 text-xs text-center focus:outline-none focus:border-neutral-600 py-0.5 w-full min-w-[55px]";
+
 export default function SalaryCrewSection({
   title, items, keyPrefix, showOfficialBadge,
   month, year,
-  expandedId, setExpandedId,
   getCrewEdit, updateCrewField, saveCrewRecord, crewSaving,
   buildCrewRecords,
 }: Props) {
+  const type = keyPrefix === "d" ? "driver" : "conductor";
+
+  const totals = items.reduce((acc, p) => {
+    const key = `${keyPrefix}-${p.id}`;
+    const ed = getCrewEdit(key);
+    const rec: CrewRecord = {
+      id: p.id, type, full_name: p.full_name,
+      is_official: (p as DriverSalary).is_official,
+      total_earned: p.total_earned, shifts_count: p.shifts.length, ...ed,
+    };
+    const toGet = calcCrewTotal(rec);
+    return {
+      earned: acc.earned + p.total_earned,
+      shifts: acc.shifts + p.shifts.length,
+      overtime: acc.overtime + p.shifts.filter(s => s.is_overtime).length,
+      sickLeave: acc.sickLeave + (Number(ed.sick_leave) || 0),
+      advanceCash: acc.advanceCash + (Number(ed.advance_cash) || 0),
+      advanceCard: acc.advanceCard + (Number(ed.advance_card) || 0),
+      salaryCard: acc.salaryCard + (Number(ed.salary_card) || 0),
+      overtimeSum: acc.overtimeSum + (Number(ed.overtime_sum) || 0),
+      fines: acc.fines + (Number(ed.fines) || 0),
+      toGet: acc.toGet + toGet,
+    };
+  }, { earned: 0, shifts: 0, overtime: 0, sickLeave: 0, advanceCash: 0, advanceCard: 0, salaryCard: 0, overtimeSum: 0, fines: 0, toGet: 0 });
+
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-3">
-        <h3 className="text-base font-semibold text-neutral-800">{title}</h3>
+    <div className="border border-neutral-200 rounded-xl overflow-hidden">
+      <div className="bg-neutral-800 px-4 py-2 flex items-center justify-between">
+        <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wide">
+          {title} — {items.length} чел.
+        </span>
         <button
           onClick={() => {
-            const records = buildCrewRecords(keyPrefix === "d" ? "driver" : "conductor");
+            const records = buildCrewRecords(type);
             printCrewStatement(records, month, year, title);
           }}
-          className="ml-auto flex items-center gap-1.5 text-xs border border-neutral-300 px-3 py-1.5 rounded hover:bg-neutral-100 transition-colors cursor-pointer text-neutral-600">
-          <Icon name="Printer" size={13} />
-          Печать ведомости
+          className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors cursor-pointer">
+          <Icon name="Printer" size={12} />
+          Печать
         </button>
       </div>
+
       {items.length === 0 ? (
-        <div className="text-neutral-400 text-sm">Нет данных</div>
+        <div className="text-neutral-400 text-sm py-6 text-center">Нет данных</div>
       ) : (
-        <div className="border border-neutral-200 rounded overflow-hidden">
-          {items.map((p, idx) => {
-            const key = `${keyPrefix}-${p.id}`;
-            const isExp = expandedId === key;
-            const ed = getCrewEdit(key);
-            const shifts = p.shifts;
-            const overtimeShifts = shifts.filter((s: DriverSalaryShift | ConductorShift) => s.is_overtime).length;
-            const rec: CrewRecord = {
-              id: p.id,
-              type: keyPrefix === "d" ? "driver" : "conductor",
-              full_name: p.full_name,
-              is_official: (p as DriverSalary).is_official,
-              total_earned: p.total_earned,
-              shifts_count: shifts.length,
-              ...ed,
-            };
-            const toGet = calcCrewTotal(rec);
-
-            return (
-              <div key={p.id} className={idx > 0 ? "border-t border-neutral-100" : ""}>
-                <div className="px-4 py-3 flex items-center gap-3 hover:bg-neutral-50 cursor-pointer transition-colors"
-                  onClick={() => setExpandedId(isExp ? null : key)}>
-                  <span className="font-medium text-neutral-900 flex-1">{p.full_name}</span>
-                  {showOfficialBadge && (
-                    <span className={`text-xs px-2 py-0.5 rounded ${(p as DriverSalary).is_official ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"}`}>
-                      {(p as DriverSalary).is_official ? "Официальный" : "Неофициальный"}
-                    </span>
-                  )}
-                  <span className="text-xs text-neutral-500">
-                    {shifts.length} смен{overtimeShifts > 0 && <span className="ml-1 text-amber-600">· {overtimeShifts} подраб.</span>}
-                  </span>
-                  <span className="font-bold text-neutral-900 text-sm">{fmt(p.total_earned)} ₽</span>
-                  <Icon name={isExp ? "ChevronUp" : "ChevronDown"} size={14} className="text-neutral-400" />
-                </div>
-
-                {isExp && (
-                  <div className="border-t border-neutral-100 bg-neutral-50 px-4 pb-4">
-                    {/* Детализация смен */}
-                    <table className="w-full text-xs mt-3 mb-4">
-                      <thead>
-                        <tr className="text-neutral-400 uppercase tracking-wide">
-                          <th className="text-left py-1.5">Дата</th>
-                          <th className="text-left">Маршрут</th>
-                          <th className="text-right">Билеты</th>
-                          <th className="text-right">База</th>
-                          {keyPrefix === "d" && <th className="text-right">Топливо</th>}
-                          <th className="text-left pl-2">%</th>
-                          <th className="text-right">Обед</th>
-                          <th className="text-right">Заработал</th>
-                          <th className="text-center">Подраб.</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {shifts.map((s: DriverSalaryShift | ConductorShift, i: number) => {
-                          const ds = s as DriverSalaryShift & { tickets?: number; base?: number; formula?: string; lunch?: number };
-                          return (
-                            <tr key={i} className={`border-t border-neutral-100 ${s.is_overtime ? "bg-amber-50" : ""}`}>
-                              <td className="py-1.5 text-neutral-600">{s.date.split("-").reverse().join(".")}</td>
-                              <td className="text-neutral-600">№ {s.route}</td>
-                              <td className="text-right text-neutral-600">
-                                {ds.tickets != null ? <span className="font-medium">{ds.tickets} шт.</span> : <span className="text-neutral-300">—</span>}
-                              </td>
-                              <td className="text-right text-neutral-600">
-                                {ds.base != null ? fmt(ds.base) + " ₽" : fmt(s.total) + " ₽"}
-                              </td>
-                              {keyPrefix === "d" && <td className="text-right text-red-400">−{fmt((s as DriverSalaryShift).fuel_cost)} ₽</td>}
-                              <td className="pl-2 text-neutral-400 whitespace-nowrap">
-                                {ds.formula ?? "—"}
-                              </td>
-                              <td className="text-right text-orange-500">
-                                {ds.lunch != null && ds.lunch > 0 ? `−${fmt(ds.lunch)} ₽` : <span className="text-neutral-300">—</span>}
-                              </td>
-                              <td className="text-right font-semibold text-neutral-900">{fmt(s.earned)} ₽</td>
-                              <td className="text-center">{s.is_overtime ? <span className="text-amber-600">Да</span> : <span className="text-neutral-300">—</span>}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t-2 border-neutral-200 font-bold text-neutral-900">
-                          <td colSpan={keyPrefix === "d" ? 6 : 5} className="py-1.5">Начислено за смены:</td>
-                          <td colSpan={2} className="text-right">{fmt(p.total_earned)} ₽</td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-
-                    {/* Поля ведомости */}
-                    <div className="border-t border-neutral-200 pt-3">
-                      <p className="text-xs text-neutral-500 mb-2 font-medium">Ведомость выплат</p>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 mb-3">
-                        {CREW_FIELDS.map(f => (
-                          <div key={f.key}>
-                            <label className="text-xs text-neutral-400 block mb-0.5">{f.label}</label>
-                            <input
-                              type="number" min="0" step="0.01"
-                              value={(ed as Record<string, string>)[f.key]}
-                              onChange={ev => updateCrewField(key, f.key, ev.target.value)}
-                              placeholder="0"
-                              className="border border-neutral-300 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:border-neutral-600 text-right"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-4 pt-2 border-t border-neutral-200 flex-wrap">
-                        <span className="text-xs text-neutral-500">Начислено: <span className="font-semibold text-neutral-900">{fmt(p.total_earned)} ₽</span></span>
-                        <span className={`text-sm font-bold ${toGet < 0 ? "text-red-600" : "text-neutral-900"}`}>
-                          Итого к выдаче: {fmt(toGet)} ₽
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-neutral-800 text-neutral-200">
+                <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 w-8">№</th>
+                <th className="px-2 py-2 text-left font-semibold border-r border-neutral-700 min-w-[150px]">ФИО</th>
+                {showOfficialBadge && <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap">Статус</th>}
+                <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap">Смен</th>
+                <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap">Подраб.</th>
+                <th className="px-2 py-2 text-right font-semibold border-r border-neutral-700 whitespace-nowrap">Начислено ₽</th>
+                <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap bg-indigo-900/40">Больнич. ₽</th>
+                <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap bg-indigo-900/40">Аванс нал. ₽</th>
+                <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap bg-indigo-900/40">Аванс карта ₽</th>
+                <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap bg-indigo-900/40">ЗП карта ₽</th>
+                <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap bg-indigo-900/40">Подработка ₽</th>
+                <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap bg-indigo-900/40">Штрафы ₽</th>
+                <th className="px-2 py-2 text-right font-semibold border-r border-neutral-700 whitespace-nowrap bg-emerald-900/30">К выдаче ₽</th>
+                <th className="px-2 py-2 text-center font-semibold w-10">↓</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((p, idx) => {
+                const key = `${keyPrefix}-${p.id}`;
+                const ed = getCrewEdit(key);
+                const overtimeShifts = p.shifts.filter(s => s.is_overtime).length;
+                const rec: CrewRecord = {
+                  id: p.id, type, full_name: p.full_name,
+                  is_official: (p as DriverSalary).is_official,
+                  total_earned: p.total_earned, shifts_count: p.shifts.length, ...ed,
+                };
+                const toGet = calcCrewTotal(rec);
+                return (
+                  <tr key={p.id} className={`border-b border-neutral-100 ${idx % 2 === 0 ? "bg-white" : "bg-neutral-50/50"}`}>
+                    <td className="px-2 py-1.5 text-center text-neutral-400 border-r border-neutral-100 font-mono">{idx + 1}</td>
+                    <td className="px-2 py-1.5 border-r border-neutral-100 font-medium text-neutral-800 whitespace-nowrap">{p.full_name}</td>
+                    {showOfficialBadge && (
+                      <td className="px-2 py-1.5 border-r border-neutral-100 text-center">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${(p as DriverSalary).is_official ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"}`}>
+                          {(p as DriverSalary).is_official ? "Офиц." : "Неофиц."}
                         </span>
-                        <button
-                          onClick={() => saveCrewRecord(key, keyPrefix === "d" ? "driver" : "conductor", p.id)}
-                          disabled={crewSaving === key}
-                          className="ml-auto bg-neutral-900 text-white px-4 py-1.5 text-xs rounded hover:bg-neutral-700 disabled:opacity-50 cursor-pointer transition-colors flex items-center gap-1.5">
-                          <Icon name={crewSaving === key ? "Loader" : "Save"} size={13} />
-                          {crewSaving === key ? "Сохраняю..." : "Сохранить"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                      </td>
+                    )}
+                    <td className="px-2 py-1.5 text-center border-r border-neutral-100 font-mono text-neutral-700">{p.shifts.length}</td>
+                    <td className="px-2 py-1.5 text-center border-r border-neutral-100">
+                      {overtimeShifts > 0
+                        ? <span className="font-semibold text-amber-600 font-mono">{overtimeShifts}</span>
+                        : <span className="text-neutral-300">—</span>}
+                    </td>
+                    <td className="px-2 py-1.5 text-right border-r border-neutral-100 font-semibold font-mono text-neutral-800 whitespace-nowrap">{fmt(p.total_earned)}</td>
+                    <td className="px-2 py-1 border-r border-neutral-100 bg-indigo-50/30">
+                      <input type="number" min="0" step="0.01" value={ed.sick_leave}
+                        onChange={ev => updateCrewField(key, "sick_leave", ev.target.value)}
+                        className={cellInp} />
+                    </td>
+                    <td className="px-2 py-1 border-r border-neutral-100 bg-indigo-50/30">
+                      <input type="number" min="0" step="0.01" value={ed.advance_cash}
+                        onChange={ev => updateCrewField(key, "advance_cash", ev.target.value)}
+                        className={cellInp} />
+                    </td>
+                    <td className="px-2 py-1 border-r border-neutral-100 bg-indigo-50/30">
+                      <input type="number" min="0" step="0.01" value={ed.advance_card}
+                        onChange={ev => updateCrewField(key, "advance_card", ev.target.value)}
+                        className={cellInp} />
+                    </td>
+                    <td className="px-2 py-1 border-r border-neutral-100 bg-indigo-50/30">
+                      <input type="number" min="0" step="0.01" value={ed.salary_card}
+                        onChange={ev => updateCrewField(key, "salary_card", ev.target.value)}
+                        className={cellInp} />
+                    </td>
+                    <td className="px-2 py-1 border-r border-neutral-100 bg-indigo-50/30">
+                      <input type="number" min="0" step="0.01" value={ed.overtime_sum}
+                        onChange={ev => updateCrewField(key, "overtime_sum", ev.target.value)}
+                        className={cellInp} />
+                    </td>
+                    <td className="px-2 py-1 border-r border-neutral-100 bg-indigo-50/30">
+                      <input type="number" min="0" step="0.01" value={ed.fines}
+                        onChange={ev => updateCrewField(key, "fines", ev.target.value)}
+                        className={cellInp} />
+                    </td>
+                    <td className={`px-2 py-1.5 text-right border-r border-neutral-100 font-bold font-mono bg-emerald-50/50 whitespace-nowrap ${toGet < 0 ? "text-red-600" : "text-emerald-700"}`}>
+                      {toGet < 0 ? "−" : ""}{fmt(Math.abs(toGet))}
+                    </td>
+                    <td className="px-2 py-1.5 text-center">
+                      <button onClick={() => saveCrewRecord(key, type, p.id)} disabled={crewSaving === key}
+                        title="Сохранить"
+                        className="p-1 rounded hover:bg-neutral-200 cursor-pointer text-neutral-500 hover:text-neutral-900 transition-colors disabled:opacity-40">
+                        <Icon name={crewSaving === key ? "Loader" : "Save"} size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-neutral-800 text-white text-xs font-bold">
+                <td colSpan={showOfficialBadge ? 3 : 2} className="px-2 py-2 text-center border-r border-neutral-700">ИТОГО</td>
+                <td className="px-2 py-2 text-center font-mono border-r border-neutral-700">{totals.shifts}</td>
+                <td className="px-2 py-2 text-center font-mono border-r border-neutral-700">{totals.overtime > 0 ? totals.overtime : "—"}</td>
+                <td className="px-2 py-2 text-right font-mono border-r border-neutral-700 whitespace-nowrap">{fmt(totals.earned)}</td>
+                <td className="px-2 py-2 text-center font-mono border-r border-neutral-700 whitespace-nowrap">{totals.sickLeave > 0 ? fmt(totals.sickLeave) : "—"}</td>
+                <td className="px-2 py-2 text-center font-mono border-r border-neutral-700 whitespace-nowrap">{totals.advanceCash > 0 ? fmt(totals.advanceCash) : "—"}</td>
+                <td className="px-2 py-2 text-center font-mono border-r border-neutral-700 whitespace-nowrap">{totals.advanceCard > 0 ? fmt(totals.advanceCard) : "—"}</td>
+                <td className="px-2 py-2 text-center font-mono border-r border-neutral-700 whitespace-nowrap">{totals.salaryCard > 0 ? fmt(totals.salaryCard) : "—"}</td>
+                <td className="px-2 py-2 text-center font-mono border-r border-neutral-700 whitespace-nowrap">{totals.overtimeSum > 0 ? fmt(totals.overtimeSum) : "—"}</td>
+                <td className="px-2 py-2 text-center font-mono border-r border-neutral-700 whitespace-nowrap">{totals.fines > 0 ? fmt(totals.fines) : "—"}</td>
+                <td className={`px-2 py-2 text-right font-mono border-r border-neutral-700 whitespace-nowrap ${totals.toGet < 0 ? "text-red-400" : "text-emerald-300"}`}>
+                  {totals.toGet < 0 ? "−" : ""}{fmt(Math.abs(totals.toGet))}
+                </td>
+                <td className="px-2 py-2"></td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       )}
     </div>

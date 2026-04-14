@@ -48,7 +48,7 @@ export const ALL_TABS: { id: TabId; label: string }[] = [
   { id: "routes", label: "Маршруты" },
   { id: "buses", label: "Автобусы" },
   { id: "terminals", label: "Терминалы" },
-  { id: "salary", label: "Зарплата" },
+  { id: "salary", label: "Ведомость" },
   { id: "journal_medical", label: "Журнал медика" },
   { id: "journal_release", label: "Журнал выпуска ТС" },
   { id: "company_card", label: "Карточка предприятия" },

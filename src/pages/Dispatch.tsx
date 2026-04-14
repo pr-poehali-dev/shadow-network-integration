@@ -30,7 +30,7 @@ const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
   { id: "routes",           label: "Маршруты",             icon: "Map" },
   { id: "buses",            label: "Автобусы",             icon: "Bus" },
   { id: "terminals",        label: "Терминалы",            icon: "MonitorSmartphone" },
-  { id: "salary",           label: "Зарплата",             icon: "Banknote" },
+  { id: "salary",           label: "Ведомость",            icon: "Banknote" },
   { id: "journal_medical",  label: "Журнал медика",        icon: "Stethoscope",   group: "Журналы" },
   { id: "journal_release",  label: "Журнал выпуска ТС",   icon: "ClipboardList", group: "Журналы" },
   { id: "cash",             label: "Наличные",             icon: "Wallet",        group: "Финансы" },

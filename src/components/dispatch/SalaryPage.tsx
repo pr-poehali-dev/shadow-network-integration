@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import Icon from "@/components/ui/icon";
 import {
-  SubTab, DriverSalary, ConductorSalary, CrewRecord, ItrEmployee,
+  DriverSalary, ConductorSalary, CrewRecord, ItrEmployee,
   MONTHS, fmt, calcItrEarned, calcCrewTotal,
 } from "./salaryTypes";
 import SalaryCrewSection from "./SalaryCrewSection";
@@ -17,17 +17,12 @@ export default function SalaryPage() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [subTab, setSubTab] = useState<SubTab>("crew");
 
-  // Экипажи
   const [driverData, setDriverData] = useState<{ drivers: DriverSalary[]; conductors: ConductorSalary[]; fuel_price: number } | null>(null);
   const [driverLoading, setDriverLoading] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  // ведомость — хранятся правки полей по ключу "d-{id}" или "c-{id}"
   const [crewEdit, setCrewEdit] = useState<Record<string, Omit<CrewRecord, "id"|"type"|"full_name"|"is_official"|"total_earned"|"shifts_count">>>({});
   const [crewSaving, setCrewSaving] = useState<string | null>(null);
 
-  // ITR
   const [itrData, setItrData] = useState<ItrEmployee[]>([]);
   const [itrLoading, setItrLoading] = useState(false);
   const [itrEdit, setItrEdit] = useState<Record<number, { days_worked: string; bonus: string; advance_paid: string; salary_paid: string; note: string }>>({});
@@ -38,7 +33,6 @@ export default function SalaryPage() {
   const [itrFormSaving, setItrFormSaving] = useState(false);
 
   const EMPTY_CREW = { sick_leave: "", advance_cash: "", advance_card: "", salary_card: "", overtime_sum: "", fines: "" };
-
   const getCrewEdit = (key: string) => crewEdit[key] ?? EMPTY_CREW;
 
   const updateCrewField = (key: string, field: string, value: string) => {
@@ -144,7 +138,6 @@ export default function SalaryPage() {
     setItrEdit(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   };
 
-  // Собираем общий список для печати
   const buildCrewRecords = (type: "driver" | "conductor"): CrewRecord[] => {
     if (!driverData) return [];
     const list = type === "driver" ? driverData.drivers : driverData.conductors;
@@ -155,10 +148,28 @@ export default function SalaryPage() {
     });
   };
 
+  // ФОТ
+  const driversTotal = driverData ? driverData.drivers.reduce((s, d) => {
+    const key = `d-${d.id}`;
+    const ed = getCrewEdit(key);
+    return s + calcCrewTotal({ id: d.id, type: "driver", full_name: d.full_name, is_official: d.is_official, total_earned: d.total_earned, shifts_count: d.shifts.length, ...ed });
+  }, 0) : 0;
+  const conductorsTotal = driverData ? driverData.conductors.reduce((s, c) => {
+    const key = `c-${c.id}`;
+    const ed = getCrewEdit(key);
+    return s + calcCrewTotal({ id: c.id, type: "conductor", full_name: c.full_name, total_earned: c.total_earned, shifts_count: c.shifts.length, ...ed });
+  }, 0) : 0;
+  const itrTotal = itrData.reduce((s, emp) => {
+    const e = itrEdit[emp.id];
+    if (!e) return s;
+    return s + calcItrEarned({ ...emp, days_worked: Number(e.days_worked) || 0 }) + (Number(e.bonus) || 0);
+  }, 0);
+  const grandTotal = driversTotal + conductorsTotal + itrTotal;
+
   return (
-    <div>
-      <div className="flex items-center gap-4 mb-6 flex-wrap">
-        <h2 className="text-2xl font-bold text-neutral-900">Зарплата</h2>
+    <div className="space-y-6">
+      <div className="flex items-center gap-4 flex-wrap">
+        <h2 className="text-2xl font-bold text-neutral-900">Ведомость</h2>
         <div className="flex gap-2 items-center ml-auto">
           <select value={month} onChange={e => setMonth(Number(e.target.value))}
             className="border border-neutral-300 rounded px-3 py-2 text-sm bg-white focus:outline-none">
@@ -171,127 +182,84 @@ export default function SalaryPage() {
         </div>
       </div>
 
-      <div className="flex gap-1 mb-6">
-        {([["crew", "Экипажи ТС"], ["itr", "ИТР"]] as [SubTab, string][]).map(([id, label]) => (
-          <button key={id} onClick={() => setSubTab(id)}
-            className={`px-4 py-2 text-sm rounded cursor-pointer transition-colors ${
-              subTab === id ? "bg-neutral-900 text-white" : "border border-neutral-300 text-neutral-600 hover:bg-neutral-100"
-            }`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {subTab === "crew" && (
-        <div>
-          {driverLoading ? (
-            <div className="text-neutral-500 text-sm py-8 text-center">Загрузка...</div>
-          ) : !driverData ? null : (
-            <div className="flex flex-col gap-6">
-              {driverData.fuel_price > 0 && (
-                <div className="text-xs text-neutral-400 flex items-center gap-1.5">
-                  <Icon name="Fuel" size={13} />
-                  Базовая цена топлива: {driverData.fuel_price} ₽/л
-                </div>
-              )}
-              <SalaryCrewSection
-                title="Водители"
-                items={driverData.drivers}
-                keyPrefix="d"
-                showOfficialBadge={true}
-                month={month}
-                year={year}
-                expandedId={expandedId}
-                setExpandedId={setExpandedId}
-                getCrewEdit={getCrewEdit}
-                updateCrewField={updateCrewField}
-                saveCrewRecord={saveCrewRecord}
-                crewSaving={crewSaving}
-                buildCrewRecords={buildCrewRecords}
-              />
-              <SalaryCrewSection
-                title="Кондукторы"
-                items={driverData.conductors}
-                keyPrefix="c"
-                showOfficialBadge={false}
-                month={month}
-                year={year}
-                expandedId={expandedId}
-                setExpandedId={setExpandedId}
-                getCrewEdit={getCrewEdit}
-                updateCrewField={updateCrewField}
-                saveCrewRecord={saveCrewRecord}
-                crewSaving={crewSaving}
-                buildCrewRecords={buildCrewRecords}
-              />
+      {/* ФОТ итого */}
+      {!driverLoading && !itrLoading && driverData && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: "Водители",   value: driversTotal,    icon: "User",     bold: false },
+            { label: "Кондукторы", value: conductorsTotal,  icon: "Users",    bold: false },
+            { label: "ИТР",        value: itrTotal,         icon: "Briefcase",bold: false },
+            { label: "Итого ФОТ",  value: grandTotal,       icon: "Banknote", bold: true  },
+          ].map(item => (
+            <div key={item.label} className={`rounded-lg p-4 border ${item.bold ? "bg-neutral-900 text-white border-neutral-900" : "bg-neutral-50 border-neutral-200"}`}>
+              <div className={`flex items-center gap-2 mb-1 ${item.bold ? "text-neutral-300" : "text-neutral-500"}`}>
+                <Icon name={item.icon} size={13} />
+                <span className="text-xs">{item.label}</span>
+              </div>
+              <div className={`text-lg font-bold ${item.bold ? "text-white" : "text-neutral-900"}`}>
+                {fmt(item.value)} ₽
+              </div>
             </div>
-          )}
+          ))}
         </div>
       )}
 
-      {subTab === "itr" && (
-        <SalaryItrSection
-          canEditItr={canEditItr}
-          itrLoading={itrLoading}
-          itrData={itrData}
-          itrEdit={itrEdit}
-          itrSaving={itrSaving}
-          showItrForm={showItrForm}
-          itrForm={itrForm}
-          itrFormSaving={itrFormSaving}
-          setShowItrForm={setShowItrForm}
-          setItrForm={setItrForm}
-          updateItrField={updateItrField}
-          saveItr={saveItr}
-          handleCreateItr={handleCreateItr}
-        />
-      )}
-
-      {/* ФОТ — итоговая строка */}
-      {!driverLoading && !itrLoading && driverData && (
-        (() => {
-          const driversTotal = driverData.drivers.reduce((s, d) => {
-            const key = `d-${d.id}`;
-            const ed = getCrewEdit(key);
-            return s + calcCrewTotal({ id: d.id, type: "driver", full_name: d.full_name, is_official: d.is_official, total_earned: d.total_earned, shifts_count: d.shifts.length, ...ed });
-          }, 0);
-          const conductorsTotal = driverData.conductors.reduce((s, c) => {
-            const key = `c-${c.id}`;
-            const ed = getCrewEdit(key);
-            return s + calcCrewTotal({ id: c.id, type: "conductor", full_name: c.full_name, total_earned: c.total_earned, shifts_count: c.shifts.length, ...ed });
-          }, 0);
-          const itrTotal = itrData.reduce((s, emp) => {
-            const e = itrEdit[emp.id];
-            if (!e) return s;
-            return s + calcItrEarned({ ...emp, days_worked: Number(e.days_worked) || 0 }) + (Number(e.bonus) || 0);
-          }, 0);
-          const grandTotal = driversTotal + conductorsTotal + itrTotal;
-
-          return (
-            <div className="mt-8 border-t-2 border-neutral-300 pt-5">
-              <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wide mb-3">Фонд оплаты труда — {MONTHS[month - 1]} {year}</h3>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[
-                  { label: "Водители",   value: driversTotal,    icon: "User",     bold: false },
-                  { label: "Кондукторы", value: conductorsTotal,  icon: "Users",    bold: false },
-                  { label: "ИТР",        value: itrTotal,         icon: "Briefcase",bold: false },
-                  { label: "Итого ФОТ",  value: grandTotal,       icon: "Banknote", bold: true  },
-                ].map(item => (
-                  <div key={item.label} className={`rounded p-4 border ${item.bold ? "bg-neutral-900 text-white border-neutral-900" : "bg-neutral-50 border-neutral-200"}`}>
-                    <div className={`flex items-center gap-2 mb-1 ${item.bold ? "text-neutral-300" : "text-neutral-500"}`}>
-                      <Icon name={item.icon} size={13} />
-                      <span className="text-xs">{item.label}</span>
-                    </div>
-                    <div className={`text-lg font-bold ${item.bold ? "text-white" : "text-neutral-900"}`}>
-                      {fmt(item.value)} ₽
-                    </div>
-                  </div>
-                ))}
-              </div>
+      {/* Экипажи — Водители */}
+      {driverLoading ? (
+        <div className="text-neutral-500 text-sm py-8 text-center">Загрузка...</div>
+      ) : driverData && (
+        <>
+          {driverData.fuel_price > 0 && (
+            <div className="text-xs text-neutral-400 flex items-center gap-1.5">
+              <Icon name="Fuel" size={13} />
+              Базовая цена топлива: {driverData.fuel_price} ₽/л
             </div>
-          );
-        })()
+          )}
+          <SalaryCrewSection
+            title="Водители"
+            items={driverData.drivers}
+            keyPrefix="d"
+            showOfficialBadge={true}
+            month={month}
+            year={year}
+            getCrewEdit={getCrewEdit}
+            updateCrewField={updateCrewField}
+            saveCrewRecord={saveCrewRecord}
+            crewSaving={crewSaving}
+            buildCrewRecords={buildCrewRecords}
+          />
+          <SalaryCrewSection
+            title="Кондукторы"
+            items={driverData.conductors}
+            keyPrefix="c"
+            showOfficialBadge={false}
+            month={month}
+            year={year}
+            getCrewEdit={getCrewEdit}
+            updateCrewField={updateCrewField}
+            saveCrewRecord={saveCrewRecord}
+            crewSaving={crewSaving}
+            buildCrewRecords={buildCrewRecords}
+          />
+        </>
       )}
+
+      {/* ИТР */}
+      <SalaryItrSection
+        canEditItr={canEditItr}
+        itrLoading={itrLoading}
+        itrData={itrData}
+        itrEdit={itrEdit}
+        itrSaving={itrSaving}
+        showItrForm={showItrForm}
+        itrForm={itrForm}
+        itrFormSaving={itrFormSaving}
+        setShowItrForm={setShowItrForm}
+        setItrForm={setItrForm}
+        updateItrField={updateItrField}
+        saveItr={saveItr}
+        handleCreateItr={handleCreateItr}
+      />
     </div>
   );
 }
