@@ -369,12 +369,15 @@ export default function SchedulePage({ onAccidentCreated }: { onAccidentCreated?
         <div className="flex flex-col gap-3">
           {groupedEntries.map(({ route, items }) => {
             const orgTerminals = terminalsByOrg[route.route_organization ?? ""] ?? terminals;
+            const routeMeta = routes.find(r => r.id === route.route_id);
             return (
               <ScheduleRouteTable
                 key={route.route_id}
                 routeNumber={route.route_number}
                 routeName={route.route_name}
                 maxGraphs={route.max_graphs}
+                minVehicles={routeMeta?.min_vehicles}
+                requiredTrips={routeMeta?.required_trips}
                 items={items}
                 date={date}
                 buses={buses}

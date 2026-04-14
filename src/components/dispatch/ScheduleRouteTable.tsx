@@ -1,4 +1,3 @@
-import Icon from "@/components/ui/icon";
 import { Entry, Bus, Conductor, Terminal } from "./scheduleTypes";
 import ScheduleEntryRow from "./ScheduleEntryRow";
 
@@ -6,6 +5,8 @@ interface Props {
   routeNumber: string;
   routeName: string;
   maxGraphs: number;
+  minVehicles?: number | null;
+  requiredTrips?: number | null;
   items: Entry[];
   date: string;
   buses: Bus[];
@@ -24,20 +25,38 @@ interface Props {
 }
 
 export default function ScheduleRouteTable({
-  routeNumber, routeName, maxGraphs, items, date,
+  routeNumber, routeName, maxGraphs, minVehicles, requiredTrips, items, date,
   buses, drivers, conductors, orgTerminals,
   ticketPrice, expandedId, setExpandedId,
   onUpdate, onSelectUpdate, onDelete, onAccident,
   calcEntryTotal, calcEntryTickets,
 }: Props) {
+  const activeVehicles = items.filter(e => !e.absence_reason).length;
+  const belowMin = minVehicles != null && activeVehicles < minVehicles;
+
   return (
-    <div className="border border-neutral-200 rounded overflow-hidden">
-      <div className="bg-neutral-100 px-4 py-2 flex items-center gap-2">
+    <div className={`border rounded overflow-hidden ${belowMin ? "border-orange-400" : "border-neutral-200"}`}>
+      <div className={`px-4 py-2 flex items-center gap-2 flex-wrap ${belowMin ? "bg-orange-50" : "bg-neutral-100"}`}>
         <span className="font-bold text-sm text-neutral-800 bg-white px-2 py-0.5 rounded border border-neutral-200">
           № {routeNumber}
         </span>
         {routeName && <span className="text-neutral-500 text-xs">{routeName}</span>}
-        <span className="text-neutral-400 text-xs ml-1">{items.length} из {maxGraphs} гр.</span>
+        <span className="text-neutral-400 text-xs">{items.length} из {maxGraphs} гр.</span>
+        {minVehicles != null && (
+          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${belowMin ? "bg-orange-100 text-orange-700" : "bg-white text-neutral-600 border border-neutral-200"}`}>
+            {belowMin && "⚠ "}ТС на линии: {activeVehicles} / {minVehicles} мин.
+          </span>
+        )}
+        {requiredTrips != null && (
+          <span className="text-xs text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">
+            {requiredTrips} рейсов/день
+          </span>
+        )}
+        {belowMin && (
+          <span className="text-xs text-orange-700 font-semibold ml-auto">
+            Не хватает {minVehicles! - activeVehicles} ТС
+          </span>
+        )}
       </div>
 
       <table className="w-full text-sm">

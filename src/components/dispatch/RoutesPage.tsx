@@ -10,18 +10,23 @@ interface Route {
   name: string;
   organization: string | null;
   max_graphs: number;
+  min_vehicles?: number | null;
+  required_trips?: number | null;
 }
 
 const ORGS = ['ООО "Дальавтотранс"', 'ООО "Техника и Технологии"'];
+
+const EMPTY_ADD = { number: "", name: "", organization: ORGS[0], max_graphs: "10", min_vehicles: "", required_trips: "" };
+const EMPTY_EDIT = { number: "", name: "", organization: "", max_graphs: "10", min_vehicles: "", required_trips: "" };
 
 export default function RoutesPage() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ number: "", name: "", organization: "", max_graphs: "10" });
+  const [editForm, setEditForm] = useState(EMPTY_EDIT);
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ number: "", name: "", organization: ORGS[0], max_graphs: "10" });
+  const [addForm, setAddForm] = useState(EMPTY_ADD);
   const [saving, setSaving] = useState(false);
 
   const load = async (invalidate = false) => {
@@ -42,8 +47,10 @@ export default function RoutesPage() {
       name: addForm.name.trim(),
       organization: addForm.organization || undefined,
       max_graphs: Number(addForm.max_graphs) || 10,
+      min_vehicles: addForm.min_vehicles ? Number(addForm.min_vehicles) : undefined,
+      required_trips: addForm.required_trips ? Number(addForm.required_trips) : undefined,
     });
-    setAddForm({ number: "", name: "", organization: ORGS[0], max_graphs: "10" });
+    setAddForm(EMPTY_ADD);
     setShowAdd(false);
     setSaving(false);
     load(true);
@@ -57,6 +64,8 @@ export default function RoutesPage() {
       name: editForm.name.trim(),
       organization: editForm.organization || undefined,
       max_graphs: Number(editForm.max_graphs) || 10,
+      min_vehicles: editForm.min_vehicles ? Number(editForm.min_vehicles) : undefined,
+      required_trips: editForm.required_trips ? Number(editForm.required_trips) : undefined,
     });
     setEditId(null);
     setSaving(false);
@@ -90,6 +99,8 @@ export default function RoutesPage() {
     "Без организации": "text-neutral-600 bg-neutral-50 border-neutral-200",
   };
 
+  const inp = "border border-neutral-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-neutral-600";
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -105,9 +116,10 @@ export default function RoutesPage() {
 
       {showAdd && (
         <div className="border border-neutral-200 rounded-lg p-4 mb-5 bg-neutral-50">
-          <div className="grid grid-cols-2 gap-3 mb-3 sm:grid-cols-4">
+          <div className="text-xs font-semibold text-neutral-500 uppercase mb-3">Новый маршрут</div>
+          <div className="grid grid-cols-2 gap-3 mb-3 sm:grid-cols-3">
             <div>
-              <label className="text-xs text-neutral-500 block mb-1">Номер маршрута</label>
+              <label className="text-xs text-neutral-500 block mb-1">Номер маршрута *</label>
               <input value={addForm.number} onChange={e => setAddForm(f => ({ ...f, number: e.target.value }))}
                 placeholder="Напр. 15А" autoFocus
                 className="border border-neutral-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-neutral-600" />
@@ -127,9 +139,23 @@ export default function RoutesPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs text-neutral-500 block mb-1">Кол-во графиков</label>
-              <input type="number" min={1} max={10} value={addForm.max_graphs}
+              <label className="text-xs text-neutral-500 block mb-1">Макс. графиков</label>
+              <input type="number" min={1} max={20} value={addForm.max_graphs}
                 onChange={e => setAddForm(f => ({ ...f, max_graphs: e.target.value }))}
+                className="border border-neutral-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-neutral-600" />
+            </div>
+            <div>
+              <label className="text-xs text-neutral-500 block mb-1">Мин. ТС на линии</label>
+              <input type="number" min={1} max={20} value={addForm.min_vehicles}
+                onChange={e => setAddForm(f => ({ ...f, min_vehicles: e.target.value }))}
+                placeholder="Не задано"
+                className="border border-neutral-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-neutral-600" />
+            </div>
+            <div>
+              <label className="text-xs text-neutral-500 block mb-1">Обязательных рейсов/день</label>
+              <input type="number" min={1} max={50} value={addForm.required_trips}
+                onChange={e => setAddForm(f => ({ ...f, required_trips: e.target.value }))}
+                placeholder="Не задано"
                 className="border border-neutral-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-neutral-600" />
             </div>
           </div>
@@ -159,48 +185,91 @@ export default function RoutesPage() {
               <div className={`border border-t-0 rounded-b-lg overflow-hidden divide-y divide-neutral-100 ${orgBorder[org] ?? ""}`}>
                 {grouped[org].map(route => (
                   <div key={route.id} className="bg-white">
-                    <div className="flex items-center gap-3 px-4 py-3 hover:bg-neutral-50 transition-colors group">
+                    <div className="flex items-start gap-3 px-4 py-3 hover:bg-neutral-50 transition-colors group">
                       {editId === route.id ? (
-                        <div className="flex items-center gap-2 flex-1 flex-wrap" onClick={e => e.stopPropagation()}>
-                          <input value={editForm.number} onChange={e => setEditForm(f => ({ ...f, number: e.target.value }))}
-                            className="border border-neutral-300 rounded px-2 py-1 text-sm w-20 focus:outline-none" autoFocus />
-                          <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                            placeholder="Название" className="border border-neutral-300 rounded px-2 py-1 text-sm w-36 focus:outline-none" />
-                          <select value={editForm.organization} onChange={e => setEditForm(f => ({ ...f, organization: e.target.value }))}
-                            className="border border-neutral-300 rounded px-2 py-1 text-sm bg-white focus:outline-none">
-                            {ORGS.map(o => <option key={o}>{o}</option>)}
-                            <option value="">— без организации</option>
-                          </select>
-                          <div className="flex items-center gap-1">
-                            <input type="number" min={1} max={10} value={editForm.max_graphs}
-                              onChange={e => setEditForm(f => ({ ...f, max_graphs: e.target.value }))}
-                              className="border border-neutral-300 rounded px-2 py-1 text-sm w-14 focus:outline-none" />
-                            <span className="text-xs text-neutral-400">гр.</span>
+                        <div className="flex-1" onClick={e => e.stopPropagation()}>
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-neutral-400">№</span>
+                              <input value={editForm.number} onChange={e => setEditForm(f => ({ ...f, number: e.target.value }))}
+                                className={`${inp} w-16`} autoFocus />
+                            </div>
+                            <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                              placeholder="Название" className={`${inp} w-36`} />
+                            <select value={editForm.organization} onChange={e => setEditForm(f => ({ ...f, organization: e.target.value }))}
+                              className={`${inp} w-52 bg-white`}>
+                              {ORGS.map(o => <option key={o}>{o}</option>)}
+                              <option value="">— без организации</option>
+                            </select>
                           </div>
-                          <button onClick={handleUpdate} disabled={saving}
-                            className="bg-neutral-900 text-white px-3 py-1 text-xs rounded hover:bg-neutral-700 disabled:opacity-50 cursor-pointer">
-                            ОК
-                          </button>
-                          <button onClick={() => setEditId(null)}
-                            className="text-neutral-500 hover:text-neutral-700 cursor-pointer text-xs">
-                            Отмена
-                          </button>
+                          <div className="flex flex-wrap items-center gap-3 mb-2">
+                            <div className="flex items-center gap-1">
+                              <label className="text-xs text-neutral-400 whitespace-nowrap">Макс. гр.:</label>
+                              <input type="number" min={1} max={20} value={editForm.max_graphs}
+                                onChange={e => setEditForm(f => ({ ...f, max_graphs: e.target.value }))}
+                                className={`${inp} w-14`} />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <label className="text-xs text-neutral-400 whitespace-nowrap">Мин. ТС:</label>
+                              <input type="number" min={1} max={20} value={editForm.min_vehicles}
+                                onChange={e => setEditForm(f => ({ ...f, min_vehicles: e.target.value }))}
+                                placeholder="—"
+                                className={`${inp} w-14`} />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <label className="text-xs text-neutral-400 whitespace-nowrap">Рейсов/день:</label>
+                              <input type="number" min={1} max={50} value={editForm.required_trips}
+                                onChange={e => setEditForm(f => ({ ...f, required_trips: e.target.value }))}
+                                placeholder="—"
+                                className={`${inp} w-14`} />
+                            </div>
+                            <button onClick={handleUpdate} disabled={saving}
+                              className="bg-neutral-900 text-white px-3 py-1 text-xs rounded hover:bg-neutral-700 disabled:opacity-50 cursor-pointer">
+                              {saving ? "..." : "ОК"}
+                            </button>
+                            <button onClick={() => setEditId(null)}
+                              className="text-neutral-500 hover:text-neutral-700 cursor-pointer text-xs">
+                              Отмена
+                            </button>
+                          </div>
                         </div>
                       ) : (
-                        <button className="flex items-center gap-3 flex-1 text-left cursor-pointer"
+                        <button className="flex items-center gap-3 flex-1 text-left cursor-pointer min-w-0"
                           onClick={() => setExpandedId(expandedId === route.id ? null : route.id)}>
-                          <span className="font-bold text-sm bg-neutral-100 text-neutral-800 px-2 py-0.5 rounded">
+                          <span className="font-bold text-sm bg-neutral-100 text-neutral-800 px-2 py-0.5 rounded shrink-0">
                             № {route.number}
                           </span>
-                          {route.name && <span className="text-neutral-500 text-sm">{route.name}</span>}
-                          <span className="text-xs text-neutral-400">{route.max_graphs} гр.</span>
+                          {route.name && <span className="text-neutral-500 text-sm truncate">{route.name}</span>}
+                          <span className="text-xs text-neutral-400 shrink-0">{route.max_graphs} гр.</span>
+                          {route.min_vehicles != null && (
+                            <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
+                              мин. {route.min_vehicles} ТС
+                            </span>
+                          )}
+                          {route.required_trips != null && (
+                            <span className="text-xs text-green-700 bg-green-50 px-1.5 py-0.5 rounded shrink-0">
+                              {route.required_trips} рейсов/день
+                            </span>
+                          )}
                           <Icon name={expandedId === route.id ? "ChevronUp" : "ChevronDown"}
-                            size={14} className="ml-auto text-neutral-400" />
+                            size={14} className="ml-auto text-neutral-400 shrink-0" />
                         </button>
                       )}
                       {editId !== route.id && (
-                        <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={e => { e.stopPropagation(); setEditId(route.id); setEditForm({ number: route.number, name: route.name ?? "", organization: route.organization ?? "", max_graphs: String(route.max_graphs) }); setExpandedId(null); }}
+                        <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                          <button onClick={e => {
+                            e.stopPropagation();
+                            setEditId(route.id);
+                            setEditForm({
+                              number: route.number,
+                              name: route.name ?? "",
+                              organization: route.organization ?? "",
+                              max_graphs: String(route.max_graphs),
+                              min_vehicles: route.min_vehicles != null ? String(route.min_vehicles) : "",
+                              required_trips: route.required_trips != null ? String(route.required_trips) : "",
+                            });
+                            setExpandedId(null);
+                          }}
                             className="text-neutral-400 hover:text-neutral-700 cursor-pointer">
                             <Icon name="Pencil" size={13} />
                           </button>

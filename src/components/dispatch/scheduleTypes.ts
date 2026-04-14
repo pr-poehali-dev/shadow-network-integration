@@ -1,4 +1,4 @@
-export interface Route { id: number; number: string; name: string; organization?: string; max_graphs: number; }
+export interface Route { id: number; number: string; name: string; organization?: string; max_graphs: number; min_vehicles?: number | null; required_trips?: number | null; }
 export interface Bus { id: number; board_number: string; model: string; }
 export interface Driver { id: number; full_name: string; }
 export interface Conductor { id: number; full_name: string; }

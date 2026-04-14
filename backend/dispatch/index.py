@@ -56,23 +56,27 @@ def handler(event: dict, context) -> dict:
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 if method == "GET":
-                    cur.execute("SELECT * FROM routes ORDER BY organization NULLS LAST, number")
+                    cur.execute("SELECT * FROM routes ORDER BY organization NULLS LAST, CAST(number AS INTEGER) NULLS LAST, number")
                     return ok(list(cur.fetchall()))
                 if method == "POST":
                     cur.execute(
-                        "INSERT INTO routes (number, name, organization, max_graphs) VALUES (%s, %s, %s, %s) RETURNING *",
+                        "INSERT INTO routes (number, name, organization, max_graphs, min_vehicles, required_trips) VALUES (%s, %s, %s, %s, %s, %s) RETURNING *",
                         (body.get("number"), body.get("name", ""),
                          body.get("organization") or None,
-                         int(body.get("max_graphs") or 10))
+                         int(body.get("max_graphs") or 10),
+                         int(body.get("min_vehicles")) if body.get("min_vehicles") else None,
+                         int(body.get("required_trips")) if body.get("required_trips") else None)
                     )
                     conn.commit()
                     return ok(dict(cur.fetchone()))
                 if method == "PUT":
                     cur.execute(
-                        "UPDATE routes SET number=%s, name=%s, organization=%s, max_graphs=%s WHERE id=%s RETURNING *",
+                        "UPDATE routes SET number=%s, name=%s, organization=%s, max_graphs=%s, min_vehicles=%s, required_trips=%s WHERE id=%s RETURNING *",
                         (body.get("number"), body.get("name", ""),
                          body.get("organization") or None,
                          int(body.get("max_graphs") or 10),
+                         int(body.get("min_vehicles")) if body.get("min_vehicles") else None,
+                         int(body.get("required_trips")) if body.get("required_trips") else None,
                          item_id)
                     )
                     conn.commit()
@@ -716,7 +720,7 @@ def handler(event: dict, context) -> dict:
                 conductor_pct = float(settings_map.get("conductor_pct") or 15) / 100
 
                 # Маршруты, по которым расчёт ведётся через билеты
-                TICKET_ROUTES = {"1", "3", "15", "24"}
+                TICKET_ROUTES = {"1", "3", "6", "15", "24"}
 
                 cur.execute("""
                     SELECT
@@ -737,7 +741,6 @@ def handler(event: dict, context) -> dict:
                 """, (date_from2, date_to2))
                 entries = list(cur.fetchall())
 
-                ROUTE6_FIXED = 7000.0
                 LUNCH = 150.0
 
                 driver_map = {}
@@ -749,12 +752,11 @@ def handler(event: dict, context) -> dict:
                     fuel_price = float(e.get("fuel_price_override") or fuel_price_default)
                     fuel_cost = float(e.get("fuel_spent") or 0) * fuel_price
                     has_conductor = e.get("conductor_id") is not None
-                    is_route6 = route_num == "6"
                     is_ticket_route = route_num in TICKET_ROUTES
 
                     # --- Расчётная база ---
                     if is_ticket_route:
-                        # Маршруты 1,3,15,24: кол-во билетов × цена билета − топливо
+                        # Маршруты 1,3,6,15,24: кол-во билетов × цена билета − топливо
                         tickets = int(e.get("tickets_count") or 0)
                         eff_ticket_price = float(e.get("entry_ticket_price") or ticket_price)
                         base = tickets * eff_ticket_price - fuel_cost
@@ -771,10 +773,7 @@ def handler(event: dict, context) -> dict:
                                 "is_official": e["driver_is_official"],
                                 "shifts": [], "total_earned": 0
                             }
-                        if is_route6:
-                            earned = ROUTE6_FIXED
-                            formula = "фиксированная"
-                        elif has_conductor:
+                        if has_conductor:
                             earned = base * driver_pct_with_cond - LUNCH
                             formula = f"{int(driver_pct_with_cond*100)}% (с кондуктором)"
                         else:
@@ -803,12 +802,8 @@ def handler(event: dict, context) -> dict:
                                 "id": cid, "full_name": e["conductor_name"],
                                 "shifts": [], "total_earned": 0
                             }
-                        if is_route6:
-                            c_earned = 0
-                            c_formula = "не начисляется (маршрут 6)"
-                        else:
-                            c_earned = base * conductor_pct
-                            c_formula = f"{int(conductor_pct*100)}%"
+                        c_earned = base * conductor_pct
+                        c_formula = f"{int(conductor_pct*100)}%"
 
                         tickets_cnt = int(e.get("tickets_count") or 0) if is_ticket_route else None
                         conductor_map[cid]["shifts"].append({
@@ -831,7 +826,7 @@ def handler(event: dict, context) -> dict:
                     "driver_pct_no_conductor": int(driver_pct_no_cond * 100),
                     "driver_pct_with_conductor": int(driver_pct_with_cond * 100),
                     "conductor_pct": int(conductor_pct * 100),
-                    "ticket_routes": list(TICKET_ROUTES),
+                    "ticket_routes": sorted(list(TICKET_ROUTES)),
                 })
 
     # --- MECHANICS: ответственные механики по выпуску ---
