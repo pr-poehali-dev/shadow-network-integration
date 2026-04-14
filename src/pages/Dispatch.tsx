@@ -20,11 +20,12 @@ import RepairPage from "@/components/dispatch/RepairPage";
 import HRPage from "@/components/dispatch/HRPage";
 import AccountingPage from "@/components/dispatch/AccountingPage";
 import BDDPage from "@/components/dispatch/BDDPage";
+import SalesPage from "@/components/dispatch/SalesPage";
 import Icon from "@/components/ui/icon";
 
 const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
   { id: "schedule",         label: "Наряд",                icon: "CalendarDays" },
-  { id: "summary",          label: "Сводка смен",          icon: "BarChart2" },
+  { id: "sales",            label: "Продажи",              icon: "TrendingUp" },
   { id: "busdocs",          label: "Документы ТС",         icon: "FileText" },
   { id: "routes",           label: "Маршруты",             icon: "Map" },
   { id: "buses",            label: "Автобусы",             icon: "Bus" },
@@ -126,6 +127,9 @@ function DispatchApp() {
           </div>
           <div className={`p-8 h-full ${currentTab === "summary" ? "" : "hidden"}`}>
             {shouldRender("summary") && <SummaryPage />}
+          </div>
+          <div className={`p-8 h-full ${currentTab === "sales" ? "" : "hidden"}`}>
+            {shouldRender("sales") && <SalesPage />}
           </div>
           <div className={`p-8 h-full ${currentTab === "busdocs" ? "" : "hidden"}`}>
             {shouldRender("busdocs") && <BusDocsPage />}
