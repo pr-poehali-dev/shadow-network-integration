@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
+import { catalogCache } from "@/lib/catalogCache";
 import Icon from "@/components/ui/icon";
 
 interface Bus { id: number; board_number: string; model: string; }
@@ -158,7 +159,7 @@ export default function BusDocsPage() {
   const [alerts, setAlerts] = useState<{ id: number; doc_type: string; expires_at: string; board_number: string; model: string; bus_id: number }[]>([]);
 
   useEffect(() => {
-    api.getBuses().then(r => {
+    catalogCache.getBuses().then(r => {
       const list = Array.isArray(r) ? r : [];
       setBuses(list);
       if (list.length > 0) setSelectedBus(list[0]);

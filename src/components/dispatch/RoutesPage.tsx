@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { catalogCache } from "@/lib/catalogCache";
 import Icon from "@/components/ui/icon";
 import RouteGraphs from "./RouteGraphs";
 
@@ -23,9 +24,10 @@ export default function RoutesPage() {
   const [addForm, setAddForm] = useState({ number: "", name: "", organization: ORGS[0], max_graphs: "10" });
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
+  const load = async (invalidate = false) => {
     setLoading(true);
-    const r = await api.getRoutes();
+    if (invalidate) catalogCache.invalidateRoutes();
+    const r = await catalogCache.getRoutes();
     setRoutes(Array.isArray(r) ? r : []);
     setLoading(false);
   };
@@ -44,7 +46,7 @@ export default function RoutesPage() {
     setAddForm({ number: "", name: "", organization: ORGS[0], max_graphs: "10" });
     setShowAdd(false);
     setSaving(false);
-    load();
+    load(true);
   };
 
   const handleUpdate = async () => {
@@ -58,14 +60,14 @@ export default function RoutesPage() {
     });
     setEditId(null);
     setSaving(false);
-    load();
+    load(true);
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Удалить маршрут и все его графики?")) return;
     await api.deleteRoute(id);
     if (expandedId === id) setExpandedId(null);
-    load();
+    load(true);
   };
 
   const grouped: Record<string, Route[]> = {};

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { catalogCache } from "@/lib/catalogCache";
 import Icon from "@/components/ui/icon";
 
 interface Driver {
@@ -30,7 +31,7 @@ export default function DriversPage() {
 
   const load = async () => {
     setLoading(true);
-    const data = await api.getDrivers();
+    const data = await catalogCache.getDrivers();
     setDrivers(Array.isArray(data) ? data : []);
     setLoading(false);
   };
@@ -64,6 +65,7 @@ export default function DriversPage() {
     const data = { ...form, birth_date: form.birth_date || null, license_date: form.license_date || null };
     if (editId !== null) await api.updateDriver(editId, data);
     else await api.createDriver(data);
+    catalogCache.invalidateDrivers();
     await load();
     resetForm();
     setSaving(false);
@@ -72,6 +74,7 @@ export default function DriversPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("Удалить водителя?")) return;
     await api.deleteDriver(id);
+    catalogCache.invalidateDrivers();
     await load();
   };
 

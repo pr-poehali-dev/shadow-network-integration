@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { catalogCache } from "@/lib/catalogCache";
 import Icon from "@/components/ui/icon";
 
 export default function SettingsPage() {
@@ -10,7 +11,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getSettings().then(s => {
+    catalogCache.getSettings().then(s => {
       setTicketPrice(s.ticket_price ?? "33");
       setFuelPrice(s.fuel_price ?? "");
       setLoading(false);
@@ -21,6 +22,7 @@ export default function SettingsPage() {
     if (!value || Number(value) <= 0) return;
     setSaving(key);
     await api.updateSetting(key, value);
+    catalogCache.invalidateSettings();
     setSaving(null);
     setSaved(key);
     setTimeout(() => setSaved(null), 2000);

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/api";
+import { catalogCache } from "@/lib/catalogCache";
 import Icon from "@/components/ui/icon";
 
 interface Route { id: number; number: string; name: string; organization?: string; max_graphs: number; }
@@ -140,20 +141,25 @@ export default function SchedulePage() {
   const [ticketPrice, setTicketPrice] = useState(33);
 
   useEffect(() => {
-    api.getSettings().then(s => {
+    catalogCache.getSettings().then(s => {
       if (s?.ticket_price) setTicketPrice(Number(s.ticket_price));
     });
   }, []);
 
   useEffect(() => {
-    Promise.all([api.getRoutes(), api.getBuses(), api.getDrivers(), api.getConductors(), api.getTerminals()])
-      .then(([r, b, d, c, t]) => {
-        setRoutes(Array.isArray(r) ? r : []);
-        setBuses(Array.isArray(b) ? b : []);
-        setDrivers(Array.isArray(d) ? d : []);
-        setConductors(Array.isArray(c) ? c : []);
-        setTerminals(Array.isArray(t) ? t : []);
-      });
+    Promise.all([
+      catalogCache.getRoutes(),
+      catalogCache.getBuses(),
+      catalogCache.getDrivers(),
+      catalogCache.getConductors(),
+      catalogCache.getTerminals(),
+    ]).then(([r, b, d, c, t]) => {
+      setRoutes(Array.isArray(r) ? r : []);
+      setBuses(Array.isArray(b) ? b : []);
+      setDrivers(Array.isArray(d) ? d : []);
+      setConductors(Array.isArray(c) ? c : []);
+      setTerminals(Array.isArray(t) ? t : []);
+    });
   }, []);
 
   const loadSchedule = useCallback(async (d: string) => {
