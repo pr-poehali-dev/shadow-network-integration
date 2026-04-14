@@ -120,6 +120,19 @@ export const api = {
   getCrewSalary: (year: number, month: number) => req("GET", "crew_salary", undefined, { year: String(year), month: String(month) }),
   saveCrewSalary: (data: object) => req("PUT", "crew_salary", data),
 
+  // Company cards
+  getCompanies: () => docsReq("GET", "companies"),
+  getCompany: (id: number) => docsReq("GET", "companies", undefined, { id: String(id) }),
+  createCompany: (data: object) => docsReq("POST", "companies", data),
+  updateCompany: (id: number, data: object) => docsReq("PUT", "companies", data, { id: String(id) }),
+  deleteCompany: (id: number) => docsReq("DELETE", "companies", undefined, { id: String(id) }),
+
+  // Company documents
+  getCompanyDocs: (companyId: number) => docsReq("GET", "company_docs", undefined, { company_id: String(companyId) }),
+  createCompanyDoc: (data: object) => docsReq("POST", "company_docs", data),
+  updateCompanyDoc: (id: number, data: object) => docsReq("PUT", "company_docs", data, { id: String(id) }),
+  deleteCompanyDoc: (id: number) => docsReq("DELETE", "company_docs", undefined, { id: String(id) }),
+
   // Bus documents
   getBusDocs: (busId: number) => docsReq("GET", "docs", undefined, { bus_id: String(busId) }),
   getAlerts: (days?: number) => docsReq("GET", "alerts", undefined, { days: String(days ?? 30) }),

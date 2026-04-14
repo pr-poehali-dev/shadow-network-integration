@@ -13,6 +13,20 @@
       "path": "/?resource=alerts&days=60",
       "expectedStatus": 200,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET companies",
+      "method": "GET",
+      "path": "/?resource=companies",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET company_docs missing company_id",
+      "method": "GET",
+      "path": "/?resource=company_docs",
+      "expectedStatus": 400,
+      "bodyMatcher": "partial"
     }
   ]
 }

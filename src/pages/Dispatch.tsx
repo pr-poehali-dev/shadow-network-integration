@@ -13,6 +13,7 @@ import SalaryPage from "@/components/dispatch/SalaryPage";
 import LoginPage from "@/components/dispatch/LoginPage";
 import MedicalJournalPage from "@/components/dispatch/MedicalJournalPage";
 import VehicleReleasePage from "@/components/dispatch/VehicleReleasePage";
+import CompanyCardPage from "@/components/dispatch/CompanyCardPage";
 import Icon from "@/components/ui/icon";
 
 const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
@@ -26,10 +27,11 @@ const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
   { id: "terminals",       label: "Терминалы",         icon: "MonitorSmartphone" },
   { id: "salary",          label: "Зарплата",          icon: "Banknote" },
   { id: "mechanics",       label: "Механики",          icon: "Wrench" },
-  { id: "journal_medical", label: "Журнал медика",     icon: "Stethoscope",  group: "Журналы" },
-  { id: "journal_release", label: "Журнал выпуска ТС", icon: "ClipboardList", group: "Журналы" },
-  { id: "users",           label: "Пользователи",      icon: "Shield" },
-  { id: "settings",        label: "Настройки",         icon: "Settings" },
+  { id: "journal_medical", label: "Журнал медика",        icon: "Stethoscope",  group: "Журналы" },
+  { id: "journal_release", label: "Журнал выпуска ТС",   icon: "ClipboardList", group: "Журналы" },
+  { id: "company_card",    label: "Карточка предприятия", icon: "Building2",     group: "Администрирование" },
+  { id: "users",           label: "Пользователи",         icon: "Shield",        group: "Администрирование" },
+  { id: "settings",        label: "Настройки",            icon: "Settings",      group: "Администрирование" },
 ];
 
 function DispatchApp() {
@@ -196,6 +198,7 @@ function DispatchApp() {
 
           {currentTab === "journal_medical" && <MedicalJournalPage />}
           {currentTab === "journal_release" && <VehicleReleasePage />}
+          {currentTab === "company_card" && <CompanyCardPage />}
           {currentTab === "users" && <UsersPage />}
           {currentTab === "settings" && <SettingsPage />}
         </main>
