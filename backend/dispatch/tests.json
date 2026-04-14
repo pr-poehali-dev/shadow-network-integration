@@ -71,6 +71,13 @@
       "bodyMatcher": "partial"
     },
     {
+      "name": "GET organizations",
+      "method": "GET",
+      "path": "/?resource=organizations",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
       "name": "GET mechanics",
       "method": "GET",
       "path": "/?resource=mechanics",

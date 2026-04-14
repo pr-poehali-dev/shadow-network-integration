@@ -43,6 +43,14 @@ def handler(event: dict, context) -> dict:
     resource = params.get("resource", "")
     item_id = params.get("id", "")
 
+    # --- ORGANIZATIONS: список уникальных организаций ---
+    if resource == "organizations":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT DISTINCT organization FROM routes WHERE organization IS NOT NULL ORDER BY organization")
+                orgs = [r["organization"] for r in cur.fetchall()]
+                return ok(orgs)
+
     # --- ROUTES ---
     if resource == "routes":
         with get_conn() as conn:
@@ -888,10 +896,13 @@ def handler(event: dict, context) -> dict:
                 for org_key, rows in org_groups.items():
                     # Начальное время — 06:00, +5 мин на каждого водителя (по порядку графика)
                     base_time = datetime.strptime("06:00", "%H:%M")
-                    for i, row in enumerate(rows):
+                    slot = 0
+                    for row in rows:
                         if row["driver_id"] in existing_driver_ids:
+                            slot += 1
                             continue
-                        t = base_time + timedelta(minutes=5 * i)
+                        t = base_time + timedelta(minutes=5 * slot)
+                        slot += 1
                         pre_time = t.strftime("%H:%M")
                         # послесменный: базово через 9 часов
                         post_t = t + timedelta(hours=9)

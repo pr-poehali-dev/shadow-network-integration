@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
+import { catalogCache } from "@/lib/catalogCache";
 import Icon from "@/components/ui/icon";
 
 interface MedicalRecord {
@@ -117,8 +118,13 @@ export default function MedicalJournalPage() {
   const [medicName, setMedicName] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<Partial<MedicalRecord>>({});
+  const [organizations, setOrganizations] = useState<string[]>([]);
 
-  const organizations = ["ООО «Автобус»", "МУП «Транспорт»"];
+  useEffect(() => {
+    catalogCache.getOrganizations().then(data => {
+      if (Array.isArray(data)) setOrganizations(data);
+    });
+  }, []);
 
   const loadRecords = useCallback(async () => {
     setLoading(true);

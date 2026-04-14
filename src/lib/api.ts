@@ -44,7 +44,7 @@ async function docsReq(method: string, resource: string, body?: object, params?:
   url.searchParams.set("resource", resource);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithRetry(url.toString(), {
     method,
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
     body: body ? JSON.stringify(body) : undefined,
@@ -57,7 +57,7 @@ async function authReq(method: string, resource: string, body?: object, params?:
   url.searchParams.set("resource", resource);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithRetry(url.toString(), {
     method,
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
     body: body ? JSON.stringify(body) : undefined,
@@ -83,6 +83,9 @@ export const api = {
   createTerminal: (data: { number: string; name: string; organization: string }) => req("POST", "terminals", data),
   updateTerminal: (id: number, data: { number: string; name: string; organization: string }) => req("PUT", "terminals", data, { id: String(id) }),
   deleteTerminal: (id: number) => req("DELETE", "terminals", undefined, { id: String(id) }),
+
+  // Organizations
+  getOrganizations: () => req("GET", "organizations"),
 
   // Routes
   getRoutes: () => req("GET", "routes"),

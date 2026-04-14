@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
+import { catalogCache } from "@/lib/catalogCache";
 import Icon from "@/components/ui/icon";
 
 interface VehicleRecord {
@@ -128,10 +129,12 @@ export default function VehicleReleasePage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<Partial<VehicleRecord>>({});
   const [defaultMechanic, setDefaultMechanic] = useState("");
-
-  const organizations = ["ООО «Автобус»", "МУП «Транспорт»"];
+  const [organizations, setOrganizations] = useState<string[]>([]);
 
   useEffect(() => {
+    catalogCache.getOrganizations().then(data => {
+      if (Array.isArray(data)) setOrganizations(data);
+    });
     api.getMechanics().then(data => {
       if (Array.isArray(data)) setMechanics(data);
     });

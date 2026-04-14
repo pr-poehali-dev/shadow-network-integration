@@ -43,6 +43,7 @@ export const catalogCache = {
   getConductors: () => cached("conductors", api.getConductors),
   getTerminals: () => cached("terminals", api.getTerminals),
   getSettings: () => cached("settings", api.getSettings),
+  getOrganizations: () => cached("organizations", api.getOrganizations),
 
   invalidateRoutes: () => invalidate("routes"),
   invalidateBuses: () => invalidate("buses"),
@@ -50,4 +51,5 @@ export const catalogCache = {
   invalidateConductors: () => invalidate("conductors"),
   invalidateTerminals: () => invalidate("terminals"),
   invalidateSettings: () => invalidate("settings"),
+  invalidateOrganizations: () => invalidate("organizations"),
 };
