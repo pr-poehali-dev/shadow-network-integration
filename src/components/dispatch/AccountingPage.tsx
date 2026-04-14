@@ -200,57 +200,54 @@ function CsvImport({ onImported }: CsvImportProps) {
   const { user } = useAuth();
   const [show, setShow] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [preview, setPreview] = useState<object[] | null>(null);
+  const [importProgress, setImportProgress] = useState(0);
+  const [allRows, setAllRows] = useState<object[]>([]);
+  const [preview, setPreview] = useState<object[]>([]);
   const [error, setError] = useState("");
   const [batchId] = useState(() => `1c_${Date.now()}`);
 
   function parseCsv(text: string): object[] {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) return [];
-    // Определяем разделитель: ; или ,
     const sep = lines[0].includes(";") ? ";" : ",";
-    const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/"/g,""));
+    const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/"/g, ""));
     const rows: object[] = [];
     for (let i = 1; i < lines.length; i++) {
-      const vals = lines[i].split(sep).map(v => v.trim().replace(/^"|"$/g,""));
-      const row: Record<string,string> = {};
+      const vals = lines[i].split(sep).map(v => v.trim().replace(/^"|"$/g, ""));
+      const row: Record<string, string> = {};
       headers.forEach((h, j) => { row[h] = vals[j] ?? ""; });
       rows.push(row);
     }
     return rows;
   }
 
-  // Маппинг полей 1С -> bank_transactions
-  function mapRow(row: Record<string,string>): Record<string,unknown> | null {
-    // Пытаемся найти дату (дата, date, дата операции)
+  function mapRow(row: Record<string, string>): Record<string, unknown> | null {
     const dateRaw = row["дата"] || row["date"] || row["дата операции"] || row["дата платежа"] || "";
     const amountRaw = row["сумма"] || row["amount"] || row["сумма операции"] || "";
     if (!dateRaw || !amountRaw) return null;
 
-    // Дата: DD.MM.YYYY или YYYY-MM-DD
     let txDate = "";
     if (dateRaw.includes(".")) {
-      const [d,m,y] = dateRaw.split(".");
-      txDate = `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+      const [d, m, y] = dateRaw.split(".");
+      txDate = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
     } else {
-      txDate = dateRaw.slice(0,10);
+      txDate = dateRaw.slice(0, 10);
     }
 
-    const amount = parseFloat(amountRaw.replace(/\s/g,"").replace(",","."));
+    const amount = parseFloat(amountRaw.replace(/\s/g, "").replace(",", "."));
     if (!amount || isNaN(amount)) return null;
 
     const debitRaw = row["дебет"] || row["расход"] || row["списание"] || "";
     const creditRaw = row["кредит"] || row["приход"] || row["поступление"] || "";
     let direction = "debit";
-    if (creditRaw && parseFloat(creditRaw.replace(/\s/g,"").replace(",",".")) > 0) direction = "credit";
-    if (debitRaw && parseFloat(debitRaw.replace(/\s/g,"").replace(",",".")) > 0) direction = "debit";
+    if (creditRaw && parseFloat(creditRaw.replace(/\s/g, "").replace(",", ".")) > 0) direction = "credit";
+    if (debitRaw && parseFloat(debitRaw.replace(/\s/g, "").replace(",", ".")) > 0) direction = "debit";
 
     const counterparty = row["контрагент"] || row["получатель"] || row["плательщик"] || row["организация"] || "";
     const purpose = row["назначение платежа"] || row["назначение"] || row["основание"] || "";
     const inn = row["инн"] || row["инн контрагента"] || "";
     const docNum = row["номер документа"] || row["номер п/п"] || row["документ"] || "";
 
-    // Авто-категория по назначению
     let category = "other";
     const p = purpose.toLowerCase() + " " + counterparty.toLowerCase();
     if (p.includes("лизинг") || p.includes("leasing")) category = "leasing";
@@ -279,44 +276,55 @@ function CsvImport({ onImported }: CsvImportProps) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError("");
+    setAllRows([]);
+    setPreview([]);
     const text = await file.text();
     const rows = parseCsv(text);
-    const mapped = rows.map(r => mapRow(r as Record<string,string>)).filter(Boolean);
+    const mapped = rows.map(r => mapRow(r as Record<string, string>)).filter(Boolean) as object[];
     if (mapped.length === 0) {
       setError("Не удалось распознать данные. Проверьте формат файла.");
       return;
     }
-    setPreview(mapped.slice(0, 5) as object[]);
+    setAllRows(mapped);
+    setPreview(mapped.slice(0, 5));
   }
 
   async function doImport() {
-    if (!preview) return;
+    if (!allRows.length) return;
     setImporting(true);
-    // Получаем все строки снова из файла (preview — первые 5)
-    // Для простоты импортируем preview — в реальности нужно хранить все строки
-    // Здесь импортируем то что в preview
-    for (const row of preview) {
-      await api.createBankTransaction(row as object);
+    setImportProgress(0);
+    for (let i = 0; i < allRows.length; i++) {
+      await api.createBankTransaction(allRows[i] as object);
+      setImportProgress(Math.round(((i + 1) / allRows.length) * 100));
     }
     setImporting(false);
     setShow(false);
-    setPreview(null);
+    setAllRows([]);
+    setPreview([]);
     onImported();
+  }
+
+  function handleClose() {
+    if (importing) return;
+    setShow(false);
+    setAllRows([]);
+    setPreview([]);
+    setError("");
   }
 
   return (
     <>
       <button onClick={() => setShow(true)}
         className="flex items-center gap-2 border border-purple-200 bg-purple-50 text-purple-700 text-sm px-3 py-2 rounded hover:bg-purple-100 cursor-pointer transition-colors">
-        <Icon name="Upload" size={14}/> Импорт из 1С (CSV)
+        <Icon name="Upload" size={14} /> Импорт из 1С (CSV)
       </button>
 
       {show && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShow(false)}>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={handleClose}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="font-semibold text-neutral-900">Импорт выписки из 1С</h2>
-              <button onClick={() => setShow(false)} className="text-neutral-400 hover:text-neutral-700 cursor-pointer"><Icon name="X" size={18}/></button>
+              <button onClick={handleClose} className="text-neutral-400 hover:text-neutral-700 cursor-pointer"><Icon name="X" size={18} /></button>
             </div>
             <div className="px-6 py-4 space-y-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-700 space-y-1">
@@ -335,32 +343,58 @@ function CsvImport({ onImported }: CsvImportProps) {
 
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex items-center gap-2">
-                  <Icon name="AlertCircle" size={14}/> {error}
+                  <Icon name="AlertCircle" size={14} /> {error}
                 </div>
               )}
 
-              {preview && preview.length > 0 && (
+              {allRows.length > 0 && (
                 <div>
-                  <div className="text-xs font-medium text-neutral-600 mb-2">Предпросмотр (первые {preview.length} строк):</div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-neutral-600">
+                      Найдено строк: <span className="font-bold text-neutral-900">{allRows.length}</span>
+                    </span>
+                    <span className="text-xs text-neutral-400">Предпросмотр первых 5</span>
+                  </div>
                   <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                    {(preview as Record<string,unknown>[]).map((r, i) => (
+                    {(preview as Record<string, unknown>[]).map((r, i) => (
                       <div key={i} className="text-xs bg-neutral-50 border border-neutral-200 rounded px-3 py-2 grid grid-cols-3 gap-2">
                         <span className="text-neutral-500">{String(r.transaction_date)}</span>
-                        <span className={`font-medium ${r.direction==="credit"?"text-green-600":"text-red-600"}`}>
-                          {r.direction==="credit"?"+":"-"}{Number(r.amount).toLocaleString("ru-RU")} ₽
+                        <span className={`font-medium ${r.direction === "credit" ? "text-green-600" : "text-red-600"}`}>
+                          {r.direction === "credit" ? "+" : "-"}{Number(r.amount).toLocaleString("ru-RU")} ₽
                         </span>
-                        <span className="text-neutral-700 truncate">{String(r.counterparty||r.purpose||"—")}</span>
+                        <span className="text-neutral-700 truncate">{String(r.counterparty || r.purpose || "—")}</span>
                       </div>
                     ))}
+                    {allRows.length > 5 && (
+                      <div className="text-xs text-neutral-400 text-center py-1">
+                        ... и ещё {allRows.length - 5} строк
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {importing && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs text-neutral-600">
+                    <span>Импортирую...</span>
+                    <span>{importProgress}%</span>
+                  </div>
+                  <div className="w-full bg-neutral-200 rounded-full h-2">
+                    <div className="bg-purple-600 h-2 rounded-full transition-all duration-200"
+                      style={{ width: `${importProgress}%` }} />
                   </div>
                 </div>
               )}
             </div>
             <div className="flex gap-3 px-6 py-4 border-t">
-              <button onClick={() => setShow(false)} className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg text-neutral-600 hover:bg-neutral-50 cursor-pointer">Отмена</button>
-              <button onClick={doImport} disabled={importing || !preview}
+              <button onClick={handleClose} disabled={importing}
+                className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg text-neutral-600 hover:bg-neutral-50 cursor-pointer disabled:opacity-50">
+                Отмена
+              </button>
+              <button onClick={doImport} disabled={importing || allRows.length === 0}
                 className="flex-1 py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-700 disabled:opacity-50 cursor-pointer">
-                {importing ? "Импортирую..." : `Импортировать ${preview?.length ?? 0} строк`}
+                {importing ? `Импортирую... ${importProgress}%` : `Импортировать ${allRows.length} строк`}
               </button>
             </div>
           </div>

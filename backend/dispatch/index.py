@@ -2275,7 +2275,8 @@ def handler(event: dict, context) -> dict:
                 conductor_shifts = {r["conductor_id"]: r["shifts"] for r in cur.fetchall()}
 
                 OVERTIME_THRESHOLD = 18
-                OVERTIME_PAY = 700
+                DRIVER_OVERTIME_PAY = 700
+                CONDUCTOR_OVERTIME_PAY = 350
 
                 suggestion = {}
                 for d in dates:
@@ -2298,7 +2299,7 @@ def handler(event: dict, context) -> dict:
                             "status": status,
                             "shifts_this_month": shifts_so_far,
                             "is_overtime": shifts_so_far >= OVERTIME_THRESHOLD,
-                            "overtime_pay": (shifts_so_far - OVERTIME_THRESHOLD) * OVERTIME_PAY if shifts_so_far > OVERTIME_THRESHOLD else 0,
+                            "overtime_pay": (shifts_so_far - OVERTIME_THRESHOLD) * DRIVER_OVERTIME_PAY if shifts_so_far > OVERTIME_THRESHOLD else 0,
                         })
 
                     for cnd in conductors_all:
@@ -2317,7 +2318,7 @@ def handler(event: dict, context) -> dict:
                             "status": status,
                             "shifts_this_month": shifts_so_far,
                             "is_overtime": shifts_so_far >= OVERTIME_THRESHOLD,
-                            "overtime_pay": (shifts_so_far - OVERTIME_THRESHOLD) * OVERTIME_PAY if shifts_so_far > OVERTIME_THRESHOLD else 0,
+                            "overtime_pay": (shifts_so_far - OVERTIME_THRESHOLD) * CONDUCTOR_OVERTIME_PAY if shifts_so_far > OVERTIME_THRESHOLD else 0,
                         })
 
                     suggestion[d] = {
@@ -2327,7 +2328,13 @@ def handler(event: dict, context) -> dict:
                         "available_conductors": [x for x in day_conductors if x["status"] == "work"],
                     }
 
-                return ok({"dates": dates, "suggestion": suggestion, "overtime_threshold": OVERTIME_THRESHOLD, "overtime_pay_per_shift": OVERTIME_PAY})
+                return ok({
+                    "dates": dates,
+                    "suggestion": suggestion,
+                    "overtime_threshold": OVERTIME_THRESHOLD,
+                    "driver_overtime_pay": DRIVER_OVERTIME_PAY,
+                    "conductor_overtime_pay": CONDUCTOR_OVERTIME_PAY,
+                })
 
     # --- OVERTIME_REPORT: отчёт по переработкам за месяц ---
     if resource == "overtime_report":
@@ -2341,7 +2348,8 @@ def handler(event: dict, context) -> dict:
         last_day = _cal.monthrange(y, m)[1]
         date_to = f"{y:04d}-{m:02d}-{last_day:02d}"
         OVERTIME_THRESHOLD = 18
-        OVERTIME_PAY = 700
+        DRIVER_OVERTIME_PAY = 700
+        CONDUCTOR_OVERTIME_PAY = 350
 
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -2356,7 +2364,7 @@ def handler(event: dict, context) -> dict:
                     GROUP BY d.id, d.full_name
                     HAVING COUNT(se.id) > 0
                     ORDER BY total_shifts DESC
-                """, (OVERTIME_THRESHOLD, OVERTIME_THRESHOLD, OVERTIME_PAY, date_from, date_to))
+                """, (OVERTIME_THRESHOLD, OVERTIME_THRESHOLD, DRIVER_OVERTIME_PAY, date_from, date_to))
                 driver_rows = list(cur.fetchall())
 
                 cur.execute("""
@@ -2370,7 +2378,7 @@ def handler(event: dict, context) -> dict:
                     GROUP BY c.id, c.full_name
                     HAVING COUNT(se.id) > 0
                     ORDER BY total_shifts DESC
-                """, (OVERTIME_THRESHOLD, OVERTIME_THRESHOLD, OVERTIME_PAY, date_from, date_to))
+                """, (OVERTIME_THRESHOLD, OVERTIME_THRESHOLD, CONDUCTOR_OVERTIME_PAY, date_from, date_to))
                 conductor_rows = list(cur.fetchall())
 
                 total_overtime_pay = sum(int(r["overtime_pay"]) for r in driver_rows + conductor_rows)
@@ -2380,7 +2388,8 @@ def handler(event: dict, context) -> dict:
                     "conductors": conductor_rows,
                     "total_overtime_pay": total_overtime_pay,
                     "overtime_threshold": OVERTIME_THRESHOLD,
-                    "overtime_pay_per_shift": OVERTIME_PAY,
+                    "driver_overtime_pay": DRIVER_OVERTIME_PAY,
+                    "conductor_overtime_pay": CONDUCTOR_OVERTIME_PAY,
                 })
 
     return err("Not found", 404)

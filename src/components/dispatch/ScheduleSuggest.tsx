@@ -23,7 +23,8 @@ interface SuggestData {
   dates: string[];
   suggestion: Record<string, DayData>;
   overtime_threshold: number;
-  overtime_pay_per_shift: number;
+  driver_overtime_pay: number;
+  conductor_overtime_pay: number;
 }
 
 interface OvertimeRow {
@@ -42,6 +43,8 @@ interface OvertimeData {
   conductors: OvertimeRow[];
   total_overtime_pay: number;
   overtime_threshold: number;
+  driver_overtime_pay: number;
+  conductor_overtime_pay: number;
 }
 
 const DAY_NAMES = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
@@ -259,12 +262,16 @@ export default function ScheduleSuggest({ onClose, currentDate }: Props) {
                       </div>
 
                       {/* Подсказка про переработку */}
-                      {selectedData.drivers.some(d => d.is_overtime) || selectedData.conductors.some(c => c.is_overtime) ? (
-                        <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 text-xs text-orange-700">
-                          <Icon name="AlertTriangle" size={13} className="inline mr-1.5" />
-                          Сотрудники с переработкой (&gt;{suggestData.overtime_threshold} смен) получают доплату {suggestData.overtime_pay_per_shift.toLocaleString("ru-RU")} ₽ за каждую дополнительную смену
+                      {(selectedData.drivers.some(d => d.is_overtime) || selectedData.conductors.some(c => c.is_overtime)) && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 text-xs text-orange-700 space-y-1">
+                          <div className="flex items-center gap-1.5 font-semibold">
+                            <Icon name="AlertTriangle" size={13} />
+                            Переработка (&gt;{suggestData.overtime_threshold} смен):
+                          </div>
+                          <div>Водители: <span className="font-semibold">{suggestData.driver_overtime_pay.toLocaleString("ru-RU")} ₽</span> / смена</div>
+                          <div>Кондукторы: <span className="font-semibold">{suggestData.conductor_overtime_pay.toLocaleString("ru-RU")} ₽</span> / смена</div>
                         </div>
-                      ) : null}
+                      )}
 
                       {/* Подсказка если нет графика */}
                       {selectedData.drivers.some(d => d.status === "unknown") && (
@@ -312,8 +319,9 @@ export default function ScheduleSuggest({ onClose, currentDate }: Props) {
                         <div className="text-xl font-bold text-orange-700">
                           {overtimeData.total_overtime_pay.toLocaleString("ru-RU")} ₽
                         </div>
-                        <div className="text-xs text-orange-500 mt-0.5">
-                          Порог: {overtimeData.overtime_threshold} смен · {overtimeData.overtime_pay_per_shift.toLocaleString("ru-RU")} ₽/смена
+                        <div className="text-xs text-orange-500 mt-0.5 space-y-0.5">
+                          <div>Порог: {overtimeData.overtime_threshold} смен</div>
+                          <div>Водители: {(overtimeData.driver_overtime_pay ?? 700).toLocaleString("ru-RU")} ₽/смена · Кондукторы: {(overtimeData.conductor_overtime_pay ?? 350).toLocaleString("ru-RU")} ₽/смена</div>
                         </div>
                       </div>
                     </div>
