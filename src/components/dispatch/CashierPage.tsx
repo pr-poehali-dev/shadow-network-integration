@@ -526,11 +526,147 @@ export default function CashierPage() {
     return { ...b, qty, sum: qty * b.value };
   });
 
+  function handlePrint() {
+    const [y, m, d] = date.split("-");
+    const dateLabel = `${d}.${m}.${y}`;
+    const filledRows = rows.filter(r => r.report_id != null);
+
+    const billRows = billTotals
+      .map(b => `
+        <tr>
+          <td style="padding:4px 10px;border:1px solid #e5e7eb;">${b.label}</td>
+          <td style="padding:4px 10px;border:1px solid #e5e7eb;text-align:center;">× ${b.qty}</td>
+          <td style="padding:4px 10px;border:1px solid #e5e7eb;text-align:right;font-weight:${b.sum > 0 ? "600" : "400"};color:${b.sum > 0 ? "#111" : "#aaa"};">
+            ${b.sum > 0 ? "= " + b.sum.toLocaleString("ru-RU", {minimumFractionDigits:2}) : "—"}
+          </td>
+        </tr>`)
+      .join("");
+
+    const vehicleRows = filledRows.map(r => {
+      const cash = Number(r.cash_total) || 0;
+      const cashless = Number(r.cashless_amount) || 0;
+      return `
+        <tr>
+          <td style="padding:4px 8px;border:1px solid #e5e7eb;">Борт ${r.board_number || "—"}</td>
+          <td style="padding:4px 8px;border:1px solid #e5e7eb;">${r.route_number}${r.graph_number != null ? ` / г.${r.graph_number}` : ""}</td>
+          <td style="padding:4px 8px;border:1px solid #e5e7eb;">${r.driver_name || "—"}</td>
+          <td style="padding:4px 8px;border:1px solid #e5e7eb;text-align:right;">${cash.toLocaleString("ru-RU",{minimumFractionDigits:2})}</td>
+          <td style="padding:4px 8px;border:1px solid #e5e7eb;text-align:right;">${cashless > 0 ? cashless.toLocaleString("ru-RU",{minimumFractionDigits:2}) : "—"}</td>
+          <td style="padding:4px 8px;border:1px solid #e5e7eb;text-align:right;font-weight:600;">${(cash+cashless).toLocaleString("ru-RU",{minimumFractionDigits:2})}</td>
+          <td style="padding:4px 8px;border:1px solid #e5e7eb;font-size:11px;color:#555;">${r.is_overtime ? "Подработка" : ""}${r.notes ? (r.is_overtime ? ", " : "") + r.notes : ""}</td>
+        </tr>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Кассовый отчёт ${dateLabel}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #111; margin: 24px; }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    h2 { font-size: 14px; margin: 20px 0 8px; color: #444; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+    th { background: #f3f4f6; padding: 5px 10px; border: 1px solid #e5e7eb; text-align: left; font-size: 12px; }
+    .totals { display: flex; gap: 32px; margin: 12px 0 20px; }
+    .total-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 20px; min-width: 160px; }
+    .total-box .label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: .05em; }
+    .total-box .value { font-size: 20px; font-weight: 700; margin-top: 2px; }
+    .footer { margin-top: 40px; font-size: 12px; color: #888; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+    @media print { body { margin: 12px; } button { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>Кассовый отчёт за ${dateLabel}</h1>
+  <p style="color:#666;font-size:12px;">Составил: ${user?.full_name || "—"} · Сформировано: ${new Date().toLocaleString("ru-RU")}</p>
+
+  <div class="totals">
+    <div class="total-box">
+      <div class="label">Наличные</div>
+      <div class="value" style="color:#16a34a;">${totalCash.toLocaleString("ru-RU",{minimumFractionDigits:2})} ₽</div>
+    </div>
+    <div class="total-box">
+      <div class="label">Безналичные</div>
+      <div class="value" style="color:#2563eb;">${totalCashless.toLocaleString("ru-RU",{minimumFractionDigits:2})} ₽</div>
+    </div>
+    <div class="total-box">
+      <div class="label">Итого</div>
+      <div class="value">${(totalCash+totalCashless).toLocaleString("ru-RU",{minimumFractionDigits:2})} ₽</div>
+    </div>
+  </div>
+
+  <h2>Покупюрная ведомость</h2>
+  <table style="max-width:420px;">
+    <thead>
+      <tr>
+        <th>Номинал</th>
+        <th style="text-align:center;">Количество</th>
+        <th style="text-align:right;">Сумма</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${billRows}
+      <tr style="background:#f3f4f6;font-weight:700;">
+        <td colspan="2" style="padding:5px 10px;border:1px solid #e5e7eb;">Итого наличных</td>
+        <td style="padding:5px 10px;border:1px solid #e5e7eb;text-align:right;color:#16a34a;">${totalCash.toLocaleString("ru-RU",{minimumFractionDigits:2})} ₽</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Детализация по транспортным средствам (${filledRows.length} ТС)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Борт</th>
+        <th>Маршрут / График</th>
+        <th>Водитель</th>
+        <th style="text-align:right;">Наличные</th>
+        <th style="text-align:right;">Безнал</th>
+        <th style="text-align:right;">Итого</th>
+        <th>Примечание</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${vehicleRows}
+      <tr style="background:#f3f4f6;font-weight:700;">
+        <td colspan="3" style="padding:5px 8px;border:1px solid #e5e7eb;">ИТОГО</td>
+        <td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:right;color:#16a34a;">${totalCash.toLocaleString("ru-RU",{minimumFractionDigits:2})}</td>
+        <td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:right;color:#2563eb;">${totalCashless.toLocaleString("ru-RU",{minimumFractionDigits:2})}</td>
+        <td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:right;">${(totalCash+totalCashless).toLocaleString("ru-RU",{minimumFractionDigits:2})}</td>
+        <td style="border:1px solid #e5e7eb;"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Кассир: _________________________ / ${user?.full_name || "___________________"} /
+    &nbsp;&nbsp;&nbsp;&nbsp; Подпись: _________________________
+  </div>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 400);
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold text-neutral-900">Касса</h1>
         <div className="flex items-center gap-2">
+          {tab === "cashier" && filledCount > 0 && (
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-2 border border-neutral-300 text-neutral-700 text-sm px-3 py-2 rounded hover:bg-neutral-100 transition-colors cursor-pointer"
+            >
+              <Icon name="Printer" size={15} />
+              Распечатать отчёт
+            </button>
+          )}
           {canManageRestrictions && (
             <div className="flex gap-1 bg-neutral-100 rounded-lg p-1">
               {(["cashier", "restrictions"] as TabMode[]).map(t => (
