@@ -135,7 +135,8 @@ export default function VehicleReleasePage() {
     catalogCache.getOrganizations().then(data => {
       if (Array.isArray(data)) setOrganizations(data);
     });
-    api.getMechanics().then(data => {
+    // Механики берутся из раздела Кадры (position = mechanic_staff)
+    api.getStaff({ position: "mechanic_staff" }).then(data => {
       if (Array.isArray(data)) setMechanics(data);
     });
   }, []);

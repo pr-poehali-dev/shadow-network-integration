@@ -3,7 +3,7 @@ import { api } from "./api";
 
 export type Role = "admin" | "dispatcher" | "mechanic" | "hr" | "accountant" | "cashier" | "repair_mechanic" | "hr_head" | "accountant_head";
 
-export type TabId = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "terminals" | "settings" | "users" | "salary" | "mechanics" | "journal_medical" | "journal_release" | "company_card" | "cash" | "cashier" | "cash_restrictions" | "repair" | "hr" | "accounting";
+export type TabId = "schedule" | "summary" | "busdocs" | "routes" | "buses" | "terminals" | "settings" | "users" | "salary" | "journal_medical" | "journal_release" | "company_card" | "cash" | "cashier" | "cash_restrictions" | "repair" | "hr" | "accounting";
 
 export interface User {
   id: number;
@@ -30,9 +30,9 @@ const AuthContext = createContext<AuthCtx>({
 });
 
 const DEFAULT_ROLE_TABS: Record<Role, TabId[]> = {
-  admin: ["schedule", "summary", "busdocs", "routes", "buses", "terminals", "salary", "mechanics", "journal_medical", "journal_release", "company_card", "cash", "cashier", "cash_restrictions", "repair", "hr", "accounting", "settings", "users"],
+  admin: ["schedule", "summary", "busdocs", "routes", "buses", "terminals", "salary", "journal_medical", "journal_release", "company_card", "cash", "cashier", "cash_restrictions", "repair", "hr", "accounting", "settings", "users"],
   dispatcher: ["schedule", "summary", "busdocs", "journal_medical", "journal_release", "hr"],
-  mechanic: ["busdocs", "buses", "mechanics", "journal_release"],
+  mechanic: ["busdocs", "buses", "journal_release", "repair"],
   hr: ["hr"],
   accountant: ["summary", "salary", "cash", "cashier", "cash_restrictions", "accounting"],
   cashier: ["cashier"],
@@ -49,7 +49,6 @@ export const ALL_TABS: { id: TabId; label: string }[] = [
   { id: "buses", label: "Автобусы" },
   { id: "terminals", label: "Терминалы" },
   { id: "salary", label: "Зарплата" },
-  { id: "mechanics", label: "Механики" },
   { id: "journal_medical", label: "Журнал медика" },
   { id: "journal_release", label: "Журнал выпуска ТС" },
   { id: "company_card", label: "Карточка предприятия" },

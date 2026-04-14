@@ -28,7 +28,6 @@ const allTabs: { id: TabId; label: string; icon: string; group?: string }[] = [
   { id: "buses",            label: "Автобусы",             icon: "Bus" },
   { id: "terminals",        label: "Терминалы",            icon: "MonitorSmartphone" },
   { id: "salary",           label: "Зарплата",             icon: "Banknote" },
-  { id: "mechanics",        label: "Механики",             icon: "Wrench" },
   { id: "journal_medical",  label: "Журнал медика",        icon: "Stethoscope",   group: "Журналы" },
   { id: "journal_release",  label: "Журнал выпуска ТС",   icon: "ClipboardList", group: "Журналы" },
   { id: "cash",             label: "Наличные",             icon: "Wallet",        group: "Финансы" },
@@ -158,26 +157,6 @@ function DispatchApp() {
           )}
 
           {currentTab === "salary" && <SalaryPage />}
-
-          {currentTab === "mechanics" && (
-            <CatalogPage
-              title="Механики по выпуску"
-              fields={[
-                { key: "full_name", label: "ФИО", placeholder: "Фамилия Имя Отчество" },
-                { key: "organization", label: "Организация", placeholder: "Название организации" },
-              ]}
-              fetchFn={api.getMechanics}
-              createFn={data => api.createMechanic(data as { full_name: string; organization?: string })}
-              updateFn={(id, data) => api.updateMechanic(id, data)}
-              deleteFn={api.deleteMechanic}
-              renderRow={item => (
-                <div className="flex items-center gap-3">
-                  <span className="font-medium text-neutral-900">{String(item.full_name)}</span>
-                  {item.organization && <span className="text-neutral-400 text-xs">{String(item.organization)}</span>}
-                </div>
-              )}
-            />
-          )}
 
           {currentTab === "journal_medical" && <MedicalJournalPage />}
           {currentTab === "journal_release" && <VehicleReleasePage />}
