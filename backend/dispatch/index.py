@@ -1657,4 +1657,100 @@ def handler(event: dict, context) -> dict:
                     conn.commit()
                     return ok({"deleted": True})
 
+    # --- STAFF: сотрудники всех должностей (кроме водителей и кондукторов) ---
+    if resource == "staff":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    position = params.get("position")
+                    org = params.get("organization")
+                    show_inactive = params.get("show_inactive") == "1"
+                    conditions = []
+                    vals = []
+                    if position:
+                        conditions.append("position = %s")
+                        vals.append(position)
+                    if org:
+                        conditions.append("organization = %s")
+                        vals.append(org)
+                    if not show_inactive:
+                        conditions.append("is_active = TRUE")
+                    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+                    cur.execute(f"SELECT * FROM staff {where} ORDER BY position, full_name", vals)
+                    return ok(list(cur.fetchall()))
+
+                if method == "POST":
+                    if not body.get("full_name") or not body.get("position"):
+                        return err("full_name and position required")
+                    cur.execute("""
+                        INSERT INTO staff
+                            (position, full_name, phone, birth_date, snils, inn,
+                             passport_series, passport_number, passport_issued_by, passport_issued_date,
+                             address, hire_date, fire_date, organization, is_official, is_active, notes)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                    """, (
+                        body.get("position"),
+                        body.get("full_name"),
+                        body.get("phone") or None,
+                        body.get("birth_date") or None,
+                        body.get("snils") or None,
+                        body.get("inn") or None,
+                        body.get("passport_series") or None,
+                        body.get("passport_number") or None,
+                        body.get("passport_issued_by") or None,
+                        body.get("passport_issued_date") or None,
+                        body.get("address") or None,
+                        body.get("hire_date") or None,
+                        body.get("fire_date") or None,
+                        body.get("organization") or None,
+                        bool(body.get("is_official", True)),
+                        bool(body.get("is_active", True)),
+                        body.get("notes") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+
+                if method == "PUT":
+                    if not item_id:
+                        return err("id required")
+                    cur.execute("""
+                        UPDATE staff SET
+                            position=%s, full_name=%s, phone=%s, birth_date=%s, snils=%s, inn=%s,
+                            passport_series=%s, passport_number=%s, passport_issued_by=%s, passport_issued_date=%s,
+                            address=%s, hire_date=%s, fire_date=%s, organization=%s,
+                            is_official=%s, is_active=%s, notes=%s, updated_at=NOW()
+                        WHERE id=%s RETURNING *
+                    """, (
+                        body.get("position"),
+                        body.get("full_name"),
+                        body.get("phone") or None,
+                        body.get("birth_date") or None,
+                        body.get("snils") or None,
+                        body.get("inn") or None,
+                        body.get("passport_series") or None,
+                        body.get("passport_number") or None,
+                        body.get("passport_issued_by") or None,
+                        body.get("passport_issued_date") or None,
+                        body.get("address") or None,
+                        body.get("hire_date") or None,
+                        body.get("fire_date") or None,
+                        body.get("organization") or None,
+                        bool(body.get("is_official", True)),
+                        bool(body.get("is_active", True)),
+                        body.get("notes") or None,
+                        item_id,
+                    ))
+                    conn.commit()
+                    row = cur.fetchone()
+                    if not row:
+                        return err("Not found", 404)
+                    return ok(dict(row))
+
+                if method == "DELETE":
+                    if not item_id:
+                        return err("id required")
+                    cur.execute("UPDATE staff SET is_active = FALSE, updated_at=NOW() WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
     return err("Not found", 404)

@@ -146,6 +146,13 @@
       "path": "/?resource=repair_work_templates",
       "expectedStatus": 200,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET staff",
+      "method": "GET",
+      "path": "/?resource=staff",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
     }
   ]
 }

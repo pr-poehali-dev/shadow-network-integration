@@ -193,6 +193,12 @@ export const api = {
   updateCash: (id: number, data: object) => req("PUT", "cash", data, { id: String(id) }),
   deleteCash: (id: number) => req("DELETE", "cash", undefined, { id: String(id) }),
 
+  // Staff (HR)
+  getStaff: (params?: Record<string,string>) => req("GET", "staff", undefined, params),
+  createStaff: (data: object) => req("POST", "staff", data),
+  updateStaff: (id: number, data: object) => req("PUT", "staff", data, { id: String(id) }),
+  deleteStaff: (id: number) => req("DELETE", "staff", undefined, { id: String(id) }),
+
   // Repair journal
   getRepairJournal: (params?: Record<string,string>) => req("GET", "repair_journal", undefined, params),
   createRepairJournal: (data: object) => req("POST", "repair_journal", data),
