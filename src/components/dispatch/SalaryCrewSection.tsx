@@ -98,28 +98,41 @@ export default function SalaryCrewSection({
                         <tr className="text-neutral-400 uppercase tracking-wide">
                           <th className="text-left py-1.5">Дата</th>
                           <th className="text-left">Маршрут</th>
-                          <th className="text-right">Выручка</th>
+                          <th className="text-right">Билеты</th>
+                          <th className="text-right">База</th>
                           {keyPrefix === "d" && <th className="text-right">Топливо</th>}
+                          <th className="text-left pl-2">%</th>
                           <th className="text-right">Заработал</th>
-                          <th className="text-center">Подработка</th>
+                          <th className="text-center">Подраб.</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {shifts.map((s: DriverSalaryShift | ConductorShift, i: number) => (
-                          <tr key={i} className={`border-t border-neutral-100 ${s.is_overtime ? "bg-amber-50" : ""}`}>
-                            <td className="py-1.5 text-neutral-600">{s.date.split("-").reverse().join(".")}</td>
-                            <td className="text-neutral-600">№ {s.route}</td>
-                            <td className="text-right text-neutral-600">{fmt(s.total)} ₽</td>
-                            {keyPrefix === "d" && <td className="text-right text-red-400">−{fmt((s as DriverSalaryShift).fuel_cost)} ₽</td>}
-                            <td className="text-right font-semibold text-neutral-900">{fmt(s.earned)} ₽</td>
-                            <td className="text-center">{s.is_overtime ? <span className="text-amber-600">Да</span> : <span className="text-neutral-300">—</span>}</td>
-                          </tr>
-                        ))}
+                        {shifts.map((s: DriverSalaryShift | ConductorShift, i: number) => {
+                          const ds = s as DriverSalaryShift & { tickets?: number; base?: number; formula?: string };
+                          return (
+                            <tr key={i} className={`border-t border-neutral-100 ${s.is_overtime ? "bg-amber-50" : ""}`}>
+                              <td className="py-1.5 text-neutral-600">{s.date.split("-").reverse().join(".")}</td>
+                              <td className="text-neutral-600">№ {s.route}</td>
+                              <td className="text-right text-neutral-600">
+                                {ds.tickets != null ? <span className="font-medium">{ds.tickets} шт.</span> : <span className="text-neutral-300">—</span>}
+                              </td>
+                              <td className="text-right text-neutral-600">
+                                {ds.base != null ? fmt(ds.base) + " ₽" : fmt(s.total) + " ₽"}
+                              </td>
+                              {keyPrefix === "d" && <td className="text-right text-red-400">−{fmt((s as DriverSalaryShift).fuel_cost)} ₽</td>}
+                              <td className="pl-2 text-neutral-400 whitespace-nowrap">
+                                {ds.formula ?? "—"}
+                              </td>
+                              <td className="text-right font-semibold text-neutral-900">{fmt(s.earned)} ₽</td>
+                              <td className="text-center">{s.is_overtime ? <span className="text-amber-600">Да</span> : <span className="text-neutral-300">—</span>}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                       <tfoot>
                         <tr className="border-t-2 border-neutral-200 font-bold text-neutral-900">
-                          <td colSpan={keyPrefix === "d" ? 4 : 3} className="py-1.5">Начислено за смены:</td>
-                          <td className="text-right">{fmt(p.total_earned)} ₽</td>
+                          <td colSpan={keyPrefix === "d" ? 5 : 4} className="py-1.5">Начислено за смены:</td>
+                          <td colSpan={2} className="text-right">{fmt(p.total_earned)} ₽</td>
                           <td></td>
                         </tr>
                       </tfoot>

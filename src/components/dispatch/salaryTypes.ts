@@ -7,6 +7,9 @@ export interface DriverSalaryShift {
   fuel_cost: number;
   earned: number;
   is_overtime: boolean;
+  tickets?: number | null;
+  base?: number;
+  formula?: string;
 }
 
 export interface DriverSalary {
@@ -23,6 +26,9 @@ export interface ConductorShift {
   total: number;
   earned: number;
   is_overtime: boolean;
+  tickets?: number | null;
+  base?: number;
+  formula?: string;
 }
 
 export interface ConductorSalary {

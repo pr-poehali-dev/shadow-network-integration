@@ -706,9 +706,17 @@ def handler(event: dict, context) -> dict:
                 last_day2 = _cal.monthrange(y2, m2)[1]
                 date_to2 = f"{y2:04d}-{m2:02d}-{last_day2:02d}"
 
-                cur.execute("SELECT value FROM settings WHERE key = 'fuel_price'")
-                row = cur.fetchone()
-                fuel_price_default = float(row["value"] or 0) if row else 0
+                # Загружаем все нужные настройки одним запросом
+                cur.execute("SELECT key, value FROM settings WHERE key IN ('fuel_price','ticket_price','driver_pct_no_conductor','driver_pct_with_conductor','conductor_pct')")
+                settings_map = {r["key"]: r["value"] for r in cur.fetchall()}
+                fuel_price_default = float(settings_map.get("fuel_price") or 0)
+                ticket_price = float(settings_map.get("ticket_price") or 70)
+                driver_pct_no_cond = float(settings_map.get("driver_pct_no_conductor") or 37) / 100
+                driver_pct_with_cond = float(settings_map.get("driver_pct_with_conductor") or 22) / 100
+                conductor_pct = float(settings_map.get("conductor_pct") or 15) / 100
+
+                # Маршруты, по которым расчёт ведётся через билеты
+                TICKET_ROUTES = {"1", "3", "15", "24"}
 
                 cur.execute("""
                     SELECT
@@ -717,6 +725,8 @@ def handler(event: dict, context) -> dict:
                         d.id as driver_id, d.full_name as driver_name, d.is_official as driver_is_official,
                         c.id as conductor_id, c.full_name as conductor_name,
                         COALESCE(se.revenue_total, se.revenue_cash + se.revenue_cashless, 0) as total,
+                        COALESCE(se.tickets_sold, 0) as tickets_count,
+                        COALESCE(se.ticket_price, NULL) as entry_ticket_price,
                         se.fuel_spent, se.fuel_price_override, se.is_overtime
                     FROM schedule_entries se
                     JOIN routes r ON r.id = se.route_id
@@ -734,28 +744,52 @@ def handler(event: dict, context) -> dict:
                 conductor_map = {}
 
                 for e in entries:
+                    route_num = e.get("route_number", "")
                     total = float(e.get("total") or 0)
                     fuel_price = float(e.get("fuel_price_override") or fuel_price_default)
                     fuel_cost = float(e.get("fuel_spent") or 0) * fuel_price
                     has_conductor = e.get("conductor_id") is not None
-                    is_route6 = e.get("route_number") == "6"
+                    is_route6 = route_num == "6"
+                    is_ticket_route = route_num in TICKET_ROUTES
+
+                    # --- Расчётная база ---
+                    if is_ticket_route:
+                        # Маршруты 1,3,15,24: кол-во билетов × цена билета − топливо
+                        tickets = int(e.get("tickets_count") or 0)
+                        eff_ticket_price = float(e.get("entry_ticket_price") or ticket_price)
+                        base = tickets * eff_ticket_price - fuel_cost
+                    else:
+                        # Остальные маршруты: выручка − топливо
+                        base = total - fuel_cost
 
                     # --- Водитель ---
                     if e.get("driver_id"):
                         did = e["driver_id"]
                         if did not in driver_map:
-                            driver_map[did] = {"id": did, "full_name": e["driver_name"], "is_official": e["driver_is_official"], "shifts": [], "total_earned": 0}
+                            driver_map[did] = {
+                                "id": did, "full_name": e["driver_name"],
+                                "is_official": e["driver_is_official"],
+                                "shifts": [], "total_earned": 0
+                            }
                         if is_route6:
                             earned = ROUTE6_FIXED
+                            formula = "фиксированная"
                         elif has_conductor:
-                            earned = total * 0.25 - LUNCH - fuel_cost
+                            earned = base * driver_pct_with_cond - LUNCH
+                            formula = f"{int(driver_pct_with_cond*100)}% (с кондуктором)"
                         else:
-                            earned = total * 0.37 - LUNCH - fuel_cost
+                            earned = base * driver_pct_no_cond - LUNCH
+                            formula = f"{int(driver_pct_no_cond*100)}% (без кондуктора)"
+
+                        tickets_cnt = int(e.get("tickets_count") or 0) if is_ticket_route else None
                         driver_map[did]["shifts"].append({
                             "date": str(e["work_date"]),
-                            "route": e["route_number"],
+                            "route": route_num,
                             "total": total,
+                            "tickets": tickets_cnt,
                             "fuel_cost": fuel_cost,
+                            "base": round(base, 2),
+                            "formula": formula,
                             "earned": round(earned, 2),
                             "is_overtime": e["is_overtime"],
                         })
@@ -765,15 +799,25 @@ def handler(event: dict, context) -> dict:
                     if e.get("conductor_id"):
                         cid = e["conductor_id"]
                         if cid not in conductor_map:
-                            conductor_map[cid] = {"id": cid, "full_name": e["conductor_name"], "shifts": [], "total_earned": 0}
+                            conductor_map[cid] = {
+                                "id": cid, "full_name": e["conductor_name"],
+                                "shifts": [], "total_earned": 0
+                            }
                         if is_route6:
                             c_earned = 0
+                            c_formula = "не начисляется (маршрут 6)"
                         else:
-                            c_earned = total * 0.15
+                            c_earned = base * conductor_pct
+                            c_formula = f"{int(conductor_pct*100)}%"
+
+                        tickets_cnt = int(e.get("tickets_count") or 0) if is_ticket_route else None
                         conductor_map[cid]["shifts"].append({
                             "date": str(e["work_date"]),
-                            "route": e["route_number"],
+                            "route": route_num,
                             "total": total,
+                            "tickets": tickets_cnt,
+                            "base": round(base, 2),
+                            "formula": c_formula,
                             "earned": round(c_earned, 2),
                             "is_overtime": e["is_overtime"],
                         })
@@ -783,6 +827,11 @@ def handler(event: dict, context) -> dict:
                     "drivers": list(driver_map.values()),
                     "conductors": list(conductor_map.values()),
                     "fuel_price": fuel_price_default,
+                    "ticket_price": ticket_price,
+                    "driver_pct_no_conductor": int(driver_pct_no_cond * 100),
+                    "driver_pct_with_conductor": int(driver_pct_with_cond * 100),
+                    "conductor_pct": int(conductor_pct * 100),
+                    "ticket_routes": list(TICKET_ROUTES),
                 })
 
     # --- MECHANICS: ответственные механики по выпуску ---
