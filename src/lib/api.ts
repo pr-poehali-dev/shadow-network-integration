@@ -193,6 +193,39 @@ export const api = {
   updateCash: (id: number, data: object) => req("PUT", "cash", data, { id: String(id) }),
   deleteCash: (id: number) => req("DELETE", "cash", undefined, { id: String(id) }),
 
+  // Repair journal
+  getRepairJournal: (params?: Record<string,string>) => req("GET", "repair_journal", undefined, params),
+  createRepairJournal: (data: object) => req("POST", "repair_journal", data),
+  updateRepairJournal: (id: number, data: object) => req("PUT", "repair_journal", data, { id: String(id) }),
+  deleteRepairJournal: (id: number) => req("DELETE", "repair_journal", undefined, { id: String(id) }),
+
+  // Repair works
+  createRepairWork: (data: object) => req("POST", "repair_works", data),
+  updateRepairWork: (id: number, data: object) => req("PUT", "repair_works", data, { id: String(id) }),
+  deleteRepairWork: (id: number) => req("DELETE", "repair_works", undefined, { id: String(id) }),
+
+  // Repair parts
+  createRepairPart: (data: object) => req("POST", "repair_parts", data),
+  updateRepairPart: (id: number, data: object) => req("PUT", "repair_parts", data, { id: String(id) }),
+  deleteRepairPart: (id: number) => req("DELETE", "repair_parts", undefined, { id: String(id) }),
+
+  // Repair work templates
+  getRepairWorkTemplates: () => req("GET", "repair_work_templates"),
+  createRepairWorkTemplate: (data: object) => req("POST", "repair_work_templates", data),
+  deleteRepairWorkTemplate: (id: number) => req("DELETE", "repair_work_templates", undefined, { id: String(id) }),
+
+  // Repair mechanics
+  getRepairMechanics: () => req("GET", "repair_mechanics"),
+  createRepairMechanic: (data: object) => req("POST", "repair_mechanics", data),
+  updateRepairMechanic: (id: number, data: object) => req("PUT", "repair_mechanics", data, { id: String(id) }),
+  deleteRepairMechanic: (id: number) => req("DELETE", "repair_mechanics", undefined, { id: String(id) }),
+
+  // Maintenance journal
+  getMaintenanceJournal: (params?: Record<string,string>) => req("GET", "maintenance_journal", undefined, params),
+  createMaintenanceJournal: (data: object) => req("POST", "maintenance_journal", data),
+  updateMaintenanceJournal: (id: number, data: object) => req("PUT", "maintenance_journal", data, { id: String(id) }),
+  deleteMaintenanceJournal: (id: number) => req("DELETE", "maintenance_journal", undefined, { id: String(id) }),
+
   // Cashier reports
   getCashierReport: (date: string, organization?: string) =>
     req("GET", "cashier_report", undefined, { date, ...(organization ? { organization } : {}) }),

@@ -1366,4 +1366,295 @@ def handler(event: dict, context) -> dict:
                     conn.commit()
                     return ok({"deleted": True})
 
+    # --- REPAIR_MECHANICS: механики по ремонту ---
+    if resource == "repair_mechanics":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    cur.execute("SELECT * FROM repair_mechanics WHERE is_active = TRUE ORDER BY full_name")
+                    return ok(list(cur.fetchall()))
+                if method == "POST":
+                    cur.execute("""
+                        INSERT INTO repair_mechanics (full_name, role, organization, specialization)
+                        VALUES (%s, %s, %s, %s) RETURNING *
+                    """, (body.get("full_name"), body.get("role","executor"),
+                          body.get("organization") or None, body.get("specialization") or None))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "PUT":
+                    cur.execute("""
+                        UPDATE repair_mechanics SET full_name=%s, role=%s, organization=%s,
+                            specialization=%s, is_active=%s WHERE id=%s RETURNING *
+                    """, (body.get("full_name"), body.get("role","executor"),
+                          body.get("organization") or None, body.get("specialization") or None,
+                          bool(body.get("is_active", True)), item_id))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "DELETE":
+                    cur.execute("UPDATE repair_mechanics SET is_active = FALSE WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- REPAIR_WORK_TEMPLATES: справочник типовых работ ---
+    if resource == "repair_work_templates":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    cur.execute("SELECT * FROM repair_work_templates WHERE is_active = TRUE ORDER BY work_type")
+                    return ok(list(cur.fetchall()))
+                if method == "POST":
+                    cur.execute("INSERT INTO repair_work_templates (work_type, description) VALUES (%s, %s) RETURNING *",
+                                (body.get("work_type"), body.get("description") or None))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "DELETE":
+                    cur.execute("UPDATE repair_work_templates SET is_active = FALSE WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- REPAIR_JOURNAL: журнал ремонта ---
+    if resource == "repair_journal":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    bus_id = params.get("bus_id")
+                    status_filter = params.get("status")
+                    conditions = []
+                    vals = []
+                    if bus_id:
+                        conditions.append("rj.bus_id = %s")
+                        vals.append(int(bus_id))
+                    if status_filter:
+                        conditions.append("rj.status = %s")
+                        vals.append(status_filter)
+                    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+                    cur.execute(f"""
+                        SELECT rj.*,
+                            COALESCE((
+                                SELECT json_agg(rw ORDER BY rw.sort_order)
+                                FROM repair_works rw WHERE rw.repair_id = rj.id
+                            ), '[]') as works,
+                            COALESCE((
+                                SELECT json_agg(rp ORDER BY rp.id)
+                                FROM repair_parts rp WHERE rp.repair_id = rj.id
+                            ), '[]') as parts
+                        FROM repair_journal rj
+                        {where}
+                        ORDER BY rj.fault_date DESC, rj.created_at DESC
+                    """, vals)
+                    return ok(list(cur.fetchall()))
+                if method == "POST":
+                    if not body.get("fault_description"):
+                        return err("fault_description required")
+                    cur.execute("""
+                        INSERT INTO repair_journal
+                            (bus_id, board_number, gov_number, bus_model, organization,
+                             fault_date, fault_type, fault_description, severity,
+                             repair_start, repair_end, status,
+                             executor_id, executor_name, controller_id, controller_name,
+                             total_cost, notes, created_by)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        RETURNING *
+                    """, (
+                        int(body.get("bus_id")) if body.get("bus_id") else None,
+                        body.get("board_number") or None, body.get("gov_number") or None,
+                        body.get("bus_model") or None, body.get("organization") or None,
+                        body.get("fault_date") or None, body.get("fault_type") or None,
+                        body.get("fault_description"),
+                        body.get("severity", "medium"),
+                        body.get("repair_start") or None, body.get("repair_end") or None,
+                        body.get("status", "open"),
+                        int(body.get("executor_id")) if body.get("executor_id") else None,
+                        body.get("executor_name") or None,
+                        int(body.get("controller_id")) if body.get("controller_id") else None,
+                        body.get("controller_name") or None,
+                        float(body.get("total_cost")) if body.get("total_cost") else None,
+                        body.get("notes") or None, body.get("created_by") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "PUT":
+                    cur.execute("""
+                        UPDATE repair_journal SET
+                            bus_id=%s, board_number=%s, gov_number=%s, bus_model=%s, organization=%s,
+                            fault_date=%s, fault_type=%s, fault_description=%s, severity=%s,
+                            repair_start=%s, repair_end=%s, status=%s,
+                            executor_id=%s, executor_name=%s, controller_id=%s, controller_name=%s,
+                            total_cost=%s, notes=%s, updated_at=NOW()
+                        WHERE id=%s RETURNING *
+                    """, (
+                        int(body.get("bus_id")) if body.get("bus_id") else None,
+                        body.get("board_number") or None, body.get("gov_number") or None,
+                        body.get("bus_model") or None, body.get("organization") or None,
+                        body.get("fault_date") or None, body.get("fault_type") or None,
+                        body.get("fault_description"),
+                        body.get("severity", "medium"),
+                        body.get("repair_start") or None, body.get("repair_end") or None,
+                        body.get("status", "open"),
+                        int(body.get("executor_id")) if body.get("executor_id") else None,
+                        body.get("executor_name") or None,
+                        int(body.get("controller_id")) if body.get("controller_id") else None,
+                        body.get("controller_name") or None,
+                        float(body.get("total_cost")) if body.get("total_cost") else None,
+                        body.get("notes") or None, item_id,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "DELETE":
+                    cur.execute("UPDATE repair_journal SET status='cancelled', updated_at=NOW() WHERE id=%s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- REPAIR_WORKS: работы по ремонту ---
+    if resource == "repair_works":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                repair_id = params.get("repair_id") or body.get("repair_id")
+                if method == "GET":
+                    if not repair_id:
+                        return err("repair_id required")
+                    cur.execute("SELECT * FROM repair_works WHERE repair_id = %s ORDER BY sort_order, id", (int(repair_id),))
+                    return ok(list(cur.fetchall()))
+                if method == "POST":
+                    if not repair_id or not body.get("work_type"):
+                        return err("repair_id and work_type required")
+                    cur.execute("""
+                        INSERT INTO repair_works (repair_id, work_type, work_description, executor_name, hours_spent, is_done, sort_order)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                    """, (int(repair_id), body.get("work_type"), body.get("work_description") or None,
+                          body.get("executor_name") or None,
+                          float(body.get("hours_spent")) if body.get("hours_spent") else None,
+                          bool(body.get("is_done", False)),
+                          int(body.get("sort_order") or 0)))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "PUT":
+                    cur.execute("""
+                        UPDATE repair_works SET work_type=%s, work_description=%s, executor_name=%s,
+                            hours_spent=%s, is_done=%s WHERE id=%s RETURNING *
+                    """, (body.get("work_type"), body.get("work_description") or None,
+                          body.get("executor_name") or None,
+                          float(body.get("hours_spent")) if body.get("hours_spent") else None,
+                          bool(body.get("is_done", False)), item_id))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "DELETE":
+                    cur.execute("DELETE FROM repair_works WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- REPAIR_PARTS: запчасти ---
+    if resource == "repair_parts":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                repair_id = params.get("repair_id") or body.get("repair_id")
+                if method == "GET":
+                    if not repair_id:
+                        return err("repair_id required")
+                    cur.execute("SELECT * FROM repair_parts WHERE repair_id = %s ORDER BY id", (int(repair_id),))
+                    return ok(list(cur.fetchall()))
+                if method == "POST":
+                    if not repair_id or not body.get("part_name"):
+                        return err("repair_id and part_name required")
+                    cur.execute("""
+                        INSERT INTO repair_parts (repair_id, part_name, part_number, quantity, unit, price_per_unit)
+                        VALUES (%s,%s,%s,%s,%s,%s) RETURNING *
+                    """, (int(repair_id), body.get("part_name"), body.get("part_number") or None,
+                          float(body.get("quantity") or 1),
+                          body.get("unit", "шт"),
+                          float(body.get("price_per_unit")) if body.get("price_per_unit") else None))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "PUT":
+                    cur.execute("""
+                        UPDATE repair_parts SET part_name=%s, part_number=%s, quantity=%s, unit=%s, price_per_unit=%s
+                        WHERE id=%s RETURNING *
+                    """, (body.get("part_name"), body.get("part_number") or None,
+                          float(body.get("quantity") or 1), body.get("unit","шт"),
+                          float(body.get("price_per_unit")) if body.get("price_per_unit") else None,
+                          item_id))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "DELETE":
+                    cur.execute("DELETE FROM repair_parts WHERE id = %s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
+    # --- MAINTENANCE_JOURNAL: журнал ТО ---
+    if resource == "maintenance_journal":
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if method == "GET":
+                    bus_id = params.get("bus_id")
+                    status_filter = params.get("status")
+                    conditions = []
+                    vals = []
+                    if bus_id:
+                        conditions.append("bus_id = %s")
+                        vals.append(int(bus_id))
+                    if status_filter:
+                        conditions.append("status = %s")
+                        vals.append(status_filter)
+                    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+                    cur.execute(f"SELECT * FROM maintenance_journal {where} ORDER BY scheduled_date DESC", vals)
+                    return ok(list(cur.fetchall()))
+                if method == "POST":
+                    if not body.get("maintenance_type") or not body.get("scheduled_date"):
+                        return err("maintenance_type and scheduled_date required")
+                    cur.execute("""
+                        INSERT INTO maintenance_journal
+                            (bus_id, board_number, gov_number, bus_model, organization,
+                             maintenance_type, scheduled_date, completed_date,
+                             mileage_at_service, next_service_mileage, next_service_date,
+                             status, executor_name, controller_name,
+                             works_performed, notes, total_cost, created_by)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *
+                    """, (
+                        int(body.get("bus_id")) if body.get("bus_id") else None,
+                        body.get("board_number") or None, body.get("gov_number") or None,
+                        body.get("bus_model") or None, body.get("organization") or None,
+                        body.get("maintenance_type"), body.get("scheduled_date"),
+                        body.get("completed_date") or None,
+                        int(body.get("mileage_at_service")) if body.get("mileage_at_service") else None,
+                        int(body.get("next_service_mileage")) if body.get("next_service_mileage") else None,
+                        body.get("next_service_date") or None,
+                        body.get("status", "scheduled"),
+                        body.get("executor_name") or None, body.get("controller_name") or None,
+                        body.get("works_performed") or None, body.get("notes") or None,
+                        float(body.get("total_cost")) if body.get("total_cost") else None,
+                        body.get("created_by") or None,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "PUT":
+                    cur.execute("""
+                        UPDATE maintenance_journal SET
+                            bus_id=%s, board_number=%s, gov_number=%s, bus_model=%s, organization=%s,
+                            maintenance_type=%s, scheduled_date=%s, completed_date=%s,
+                            mileage_at_service=%s, next_service_mileage=%s, next_service_date=%s,
+                            status=%s, executor_name=%s, controller_name=%s,
+                            works_performed=%s, notes=%s, total_cost=%s, updated_at=NOW()
+                        WHERE id=%s RETURNING *
+                    """, (
+                        int(body.get("bus_id")) if body.get("bus_id") else None,
+                        body.get("board_number") or None, body.get("gov_number") or None,
+                        body.get("bus_model") or None, body.get("organization") or None,
+                        body.get("maintenance_type"), body.get("scheduled_date"),
+                        body.get("completed_date") or None,
+                        int(body.get("mileage_at_service")) if body.get("mileage_at_service") else None,
+                        int(body.get("next_service_mileage")) if body.get("next_service_mileage") else None,
+                        body.get("next_service_date") or None,
+                        body.get("status", "scheduled"),
+                        body.get("executor_name") or None, body.get("controller_name") or None,
+                        body.get("works_performed") or None, body.get("notes") or None,
+                        float(body.get("total_cost")) if body.get("total_cost") else None,
+                        item_id,
+                    ))
+                    conn.commit()
+                    return ok(dict(cur.fetchone()))
+                if method == "DELETE":
+                    cur.execute("UPDATE maintenance_journal SET status='done', updated_at=NOW() WHERE id=%s", (item_id,))
+                    conn.commit()
+                    return ok({"deleted": True})
+
     return err("Not found", 404)

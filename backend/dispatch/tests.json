@@ -118,6 +118,34 @@
       "path": "/?resource=cash_restriction",
       "expectedStatus": 200,
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET repair_mechanics",
+      "method": "GET",
+      "path": "/?resource=repair_mechanics",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET repair_journal",
+      "method": "GET",
+      "path": "/?resource=repair_journal",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET maintenance_journal",
+      "method": "GET",
+      "path": "/?resource=maintenance_journal",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET repair_work_templates",
+      "method": "GET",
+      "path": "/?resource=repair_work_templates",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
     }
   ]
 }
