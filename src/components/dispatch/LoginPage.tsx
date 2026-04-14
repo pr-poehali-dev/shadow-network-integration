@@ -40,15 +40,6 @@ export default function LoginPage() {
               className="border border-neutral-300 rounded px-3 py-2.5 text-sm w-full focus:outline-none focus:border-neutral-600"
             />
           </div>
-          <div>
-            <label className="text-xs text-neutral-500 block mb-1">Пароль</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="border border-neutral-300 rounded px-3 py-2.5 text-sm w-full focus:outline-none focus:border-neutral-600"
-            />
-          </div>
 
           {error && (
             <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded flex items-center gap-2">
@@ -59,7 +50,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading || !username || !password}
+            disabled={loading || !username}
             className="w-full bg-neutral-900 text-white py-2.5 text-sm rounded hover:bg-neutral-700 transition-colors disabled:opacity-50 cursor-pointer font-medium"
           >
             {loading ? "Вход..." : "Войти"}

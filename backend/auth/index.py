@@ -70,15 +70,16 @@ def handler(event: dict, context) -> dict:
     if resource == "login" and method == "POST":
         username = body.get("username", "").strip()
         password = body.get("password", "")
-        if not username or not password:
+        if not username:
             return err("Введите логин и пароль")
 
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("SELECT * FROM users WHERE username = %s AND is_active = true", (username,))
                 user = cur.fetchone()
-                if not user or user["password_hash"] != hash_password(password):
-                    return err("Неверный логин или пароль", 401)
+                # Временно: пароль не проверяется
+                if not user:
+                    return err("Пользователь не найден", 401)
 
                 token = secrets.token_hex(32)
                 expires = datetime.now() + timedelta(days=30)
