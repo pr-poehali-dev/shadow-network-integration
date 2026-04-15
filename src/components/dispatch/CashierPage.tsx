@@ -187,6 +187,11 @@ export default function CashierPage() {
               className="border border-neutral-200 p-2 rounded hover:bg-neutral-100 cursor-pointer transition-colors">
               <Icon name="ChevronRight" size={16} />
             </button>
+            <button onClick={load} disabled={loading}
+              className="border border-neutral-200 p-2 rounded hover:bg-neutral-100 cursor-pointer transition-colors disabled:opacity-40"
+              title="Обновить данные из наряда">
+              <Icon name="RefreshCw" size={16} className={loading ? "animate-spin" : ""} />
+            </button>
             <span className="text-xs text-neutral-400">
               {rows.filter(r => r.report_id != null).length} из {rows.length} внесено
             </span>
