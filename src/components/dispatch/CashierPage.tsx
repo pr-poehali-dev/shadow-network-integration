@@ -14,7 +14,7 @@ export default function CashierPage() {
   const [summary, setSummary] = useState<CashierSummary>({
     total_cash: 0, total_cashless: 0, total_lunch: 0, total_fuel_cost: 0,
     garage_daily_expenses: 5000, duty_car_shift_pay: 0,
-    duty_car_fuel_liters: 0, duty_car_fuel_cost: 0, fuel_price: 72, ticket_price: 35,
+    duty_car_fuel_liters: 0, duty_car_fuel_cost: 0, fuel_price: 72, ticket_price: 35, total_bonus: 0,
   });
   const [loading, setLoading] = useState(false);
   const [activeForm, setActiveForm] = useState<ScheduleRow | null>(null);
@@ -36,6 +36,7 @@ export default function CashierPage() {
       duty_car_fuel_cost: Number(data.duty_car_fuel_cost) || 0,
       fuel_price: Number(data.fuel_price) || 72,
       ticket_price: Number(data.ticket_price) || 35,
+      total_bonus: Number(data.total_bonus) || 0,
     });
     setLoading(false);
   }, [date]);
@@ -43,7 +44,7 @@ export default function CashierPage() {
   useEffect(() => { load(); }, [load]);
 
   const filledCount = rows.filter(r => r.report_id != null).length;
-  const totalGrand = summary.total_cash + summary.total_cashless;
+  const totalGrand = summary.total_cash + summary.total_cashless + summary.total_bonus;
 
   // Итоговая сумма к сдаче = выручка − обеды − хознужды − дежурка (оплата + ДТ)
   const dutyTotal = summary.duty_car_shift_pay + summary.duty_car_fuel_cost;
@@ -63,7 +64,8 @@ export default function CashierPage() {
     const vehicleRows = filledRows.map((r, i) => {
       const cash = Number(r.cash_total) || 0;
       const cashless = Number(r.cashless_amount) || 0;
-      const revenue = cash + cashless;
+      const pBonus = Number(r.bonus_cash) || 0;
+      const revenue = cash + cashless + pBonus;
       const lunch = Number(r.lunch_amount) || 0;
       const fuel = Number(r.fuel_cost) || 0;
       const toSubmit = revenue - lunch - fuel;
@@ -76,6 +78,7 @@ export default function CashierPage() {
         <td class="c">${r.tickets_sold != null ? r.tickets_sold : "—"}</td>
         <td class="r">${cashless > 0 ? cashless.toLocaleString("ru-RU", { minimumFractionDigits: 2 }) : "—"}</td>
         <td class="r">${cash.toLocaleString("ru-RU", { minimumFractionDigits: 2 })}</td>
+        <td class="r" style="color:#7c3aed">${pBonus > 0 ? pBonus.toLocaleString("ru-RU", { minimumFractionDigits: 2 }) : "—"}</td>
         <td class="r bold">${revenue.toLocaleString("ru-RU", { minimumFractionDigits: 2 })}</td>
         <td class="c">${lunch > 0 ? lunch.toLocaleString("ru-RU", { minimumFractionDigits: 0 }) : "—"}</td>
         <td class="c">${fuel > 0 ? fuel.toLocaleString("ru-RU", { minimumFractionDigits: 2 }) : "—"}</td>
@@ -126,6 +129,7 @@ td{padding:3px 6px;border:1px solid #e5e7eb;font-size:10px;white-space:nowrap}
   <th class="c">Билеты</th>
   <th class="r">Безнал, ₽</th>
   <th class="r">Нал, ₽</th>
+  <th class="r">В плюс, ₽</th>
   <th class="r">Выручка, ₽</th>
   <th class="c">Обед, ₽</th>
   <th class="c">Расход ДТ, ₽</th>
@@ -138,6 +142,7 @@ ${vehicleRows}
   <td colspan="5" class="c">ИТОГО</td>
   <td class="r blue">${summary.total_cashless.toLocaleString("ru-RU", { minimumFractionDigits: 2 })}</td>
   <td class="r green">${summary.total_cash.toLocaleString("ru-RU", { minimumFractionDigits: 2 })}</td>
+  <td class="r" style="color:#7c3aed">${summary.total_bonus > 0 ? summary.total_bonus.toLocaleString("ru-RU", { minimumFractionDigits: 2 }) : "—"}</td>
   <td class="r">${totalGrand.toLocaleString("ru-RU", { minimumFractionDigits: 2 })}</td>
   <td class="c">${summary.total_lunch.toLocaleString("ru-RU", { minimumFractionDigits: 0 })}</td>
   <td class="c">${summary.total_fuel_cost.toLocaleString("ru-RU", { minimumFractionDigits: 2 })}</td>
@@ -265,6 +270,7 @@ ${billRowsHtml}
                       <th className="border border-neutral-300 px-2 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">Безнал, ₽</th>
                       <th className="border border-neutral-300 px-2 py-2 text-right font-semibold text-green-700 whitespace-nowrap">Нал, ₽</th>
                       <th className="border border-neutral-300 px-2 py-2 text-right font-semibold text-amber-700 whitespace-nowrap bg-amber-50">ДТ, ₽</th>
+                      <th className="border border-neutral-300 px-2 py-2 text-right font-semibold text-purple-700 whitespace-nowrap">В плюс, ₽</th>
                       <th className="border border-neutral-300 px-2 py-2 text-right font-semibold text-neutral-700 whitespace-nowrap bg-yellow-50">Выручка, ₽</th>
                       <th className="border border-neutral-300 px-2 py-2 text-center font-semibold text-orange-700 whitespace-nowrap">Обед, ₽</th>
                       <th className="border border-neutral-300 px-2 py-2 text-center font-semibold text-violet-700 whitespace-nowrap">Подраб.</th>
@@ -275,7 +281,8 @@ ${billRowsHtml}
                     {rows.filter(r => r.report_id != null).map((r, i) => {
                       const cash = Number(r.cash_total) || 0;
                       const cashless = Number(r.cashless_amount) || 0;
-                      const revenue = cash + cashless;
+                      const rBonus = Number(r.bonus_cash) || 0;
+                      const revenue = cash + cashless + rBonus;
                       const lunch = Number(r.lunch_amount) || 0;
                       const fuel = Number(r.fuel_cost) || 0;
                       const toSubmit = revenue - lunch - fuel;
@@ -304,6 +311,9 @@ ${billRowsHtml}
                           <td className="border border-neutral-200 px-2 py-1.5 text-right text-amber-700 font-mono bg-amber-50/50">
                             {fuel > 0 ? fmt(fuel) : <span className="text-neutral-300">—</span>}
                           </td>
+                          <td className="border border-neutral-200 px-2 py-1.5 text-right text-purple-700 font-mono">
+                            {rBonus > 0 ? fmt(rBonus) : <span className="text-neutral-300">—</span>}
+                          </td>
                           <td className="border border-neutral-200 px-2 py-1.5 text-right font-bold text-neutral-900 bg-yellow-50 font-mono">
                             {fmt(revenue)}
                           </td>
@@ -328,6 +338,7 @@ ${billRowsHtml}
                       <td className="border border-neutral-600 px-2 py-2 text-right text-blue-300 font-mono">{fmt(summary.total_cashless)}</td>
                       <td className="border border-neutral-600 px-2 py-2 text-right text-green-300 font-mono">{fmt(summary.total_cash)}</td>
                       <td className="border border-neutral-600 px-2 py-2 text-right text-amber-300 font-mono">{fmt(summary.total_fuel_cost)}</td>
+                      <td className="border border-neutral-600 px-2 py-2 text-right text-purple-300 font-mono">{summary.total_bonus > 0 ? fmt(summary.total_bonus) : "—"}</td>
                       <td className="border border-neutral-600 px-2 py-2 text-right text-yellow-300 font-mono">{fmt(totalGrand)}</td>
                       <td className="border border-neutral-600 px-2 py-2 text-center text-orange-300 font-mono">−{fmt(summary.total_lunch)}</td>
                       <td className="border border-neutral-600 px-2 py-2"></td>
@@ -443,6 +454,7 @@ ${billRowsHtml}
                       <th className="px-2 py-2 text-right font-semibold border-r border-neutral-700 whitespace-nowrap text-green-300">Нал ₽</th>
                       <th className="px-2 py-2 text-right font-semibold border-r border-neutral-700 whitespace-nowrap text-amber-300 bg-amber-900/20">ДТ ₽</th>
                       <th className="px-2 py-2 text-right font-semibold border-r border-neutral-700 whitespace-nowrap bg-yellow-900/30">Выручка ₽</th>
+                      <th className="px-2 py-2 text-right font-semibold border-r border-neutral-700 whitespace-nowrap text-purple-300">В плюс ₽</th>
                       <th className="px-2 py-2 text-center font-semibold border-r border-neutral-700 whitespace-nowrap">Ограничение</th>
                       <th className="px-2 py-2 text-center font-semibold whitespace-nowrap">Статус</th>
                     </tr>
@@ -453,6 +465,7 @@ ${billRowsHtml}
                       const hasRestriction = !!row.restriction;
                       const cash = Number(row.cash_total) || 0;
                       const cashless = Number(row.cashless_amount) || 0;
+                      const bonus = Number(row.bonus_cash) || 0;
                       const crew = [row.driver_name, row.conductor_name].filter(Boolean).join(" / ");
                       return (
                         <tr key={row.schedule_entry_id}
@@ -488,7 +501,10 @@ ${billRowsHtml}
                             {Number(row.fuel_cash_amount) > 0 ? fmt(Number(row.fuel_cash_amount)) : <span className="text-neutral-300">—</span>}
                           </td>
                           <td className="px-2 py-2 text-right border-r border-neutral-100 font-bold font-mono text-neutral-900 bg-yellow-50/50">
-                            {hasFilled ? fmt(cash + cashless) : <span className="text-neutral-300">—</span>}
+                            {hasFilled ? fmt(cash + cashless + bonus) : <span className="text-neutral-300">—</span>}
+                          </td>
+                          <td className="px-2 py-2 text-right border-r border-neutral-100 font-mono text-purple-700">
+                            {bonus > 0 ? fmt(bonus) : <span className="text-neutral-300">—</span>}
                           </td>
                           <td className="px-2 py-2 text-center border-r border-neutral-100">
                             {hasRestriction ? (

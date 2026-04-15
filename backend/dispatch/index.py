@@ -1532,7 +1532,9 @@ def handler(event: dict, context) -> dict:
                                cr.bills_200, cr.bills_100, cr.bills_50, cr.bills_10,
                                cr.coins_10, cr.coins_5, cr.coins_2, cr.coins_1,
                                COALESCE(cr.cashless_amount, se.revenue_cashless, 0) as cashless_amount,
-                               cr.fuel_cash_amount, cr.fuel_liters, cr.fuel_price_per_liter, cr.tickets_sold as cr_tickets_sold, cr.notes, cr.updated_at
+                               cr.fuel_cash_amount, cr.fuel_liters, cr.fuel_price_per_liter, cr.tickets_sold as cr_tickets_sold,
+                               COALESCE(cr.bonus_cash, 0) as bonus_cash, cr.cash_manual,
+                               cr.notes, cr.updated_at
                         FROM schedule_entries se
                         JOIN routes r ON r.id = se.route_id
                         LEFT JOIN buses b ON b.id = se.bus_id
@@ -1561,8 +1563,11 @@ def handler(event: dict, context) -> dict:
                     for row in rows:
                         d = dict(row)
                         d["restriction"] = restrictions.get(row.get("driver_id"))
-                        cash_total = sum(int(d.get(b) or 0) * v for b, v in BILL_VALUES.items())
+                        bills_total = sum(int(d.get(b) or 0) * v for b, v in BILL_VALUES.items())
+                        cash_manual = d.get("cash_manual")
+                        cash_total = float(cash_manual) if cash_manual is not None else bills_total
                         d["cash_total"] = cash_total
+                        d["bonus_cash"] = float(d.get("bonus_cash") or 0)
                         # Обед: если есть кондуктор — оба платят lunch_with_c, иначе driver платит lunch_no_c
                         has_conductor = bool(d.get("conductor_name"))
                         d["lunch_amount"] = (lunch_with_c * 2) if has_conductor else lunch_no_c
@@ -1580,12 +1585,14 @@ def handler(event: dict, context) -> dict:
                     total_cashless = sum(float(r.get("cashless_amount") or 0) for r in result)
                     total_lunch = sum(float(r.get("lunch_amount") or 0) for r in result)
                     total_fuel_cost = sum(float(r.get("fuel_cost") or 0) for r in result)
+                    total_bonus = sum(float(r.get("bonus_cash") or 0) for r in result)
                     return ok({
                         "rows": result,
                         "total_cash": total_cash,
                         "total_cashless": total_cashless,
                         "total_lunch": total_lunch,
                         "total_fuel_cost": total_fuel_cost,
+                        "total_bonus": total_bonus,
                         "garage_daily_expenses": garage_exp,
                         "duty_car_shift_pay": duty_pay,
                         "duty_car_fuel_liters": duty_fuel,
@@ -1604,6 +1611,8 @@ def handler(event: dict, context) -> dict:
                     fuel_liters = float(body.get("fuel_liters")) if body.get("fuel_liters") else None
                     fuel_price_per_liter = float(body.get("fuel_price_per_liter")) if body.get("fuel_price_per_liter") else None
                     tickets_sold = int(body.get("tickets_sold")) if body.get("tickets_sold") is not None else None
+                    bonus_cash_val = float(body.get("bonus_cash") or 0)
+                    cash_manual_val = float(body.get("cash_manual")) if body.get("cash_manual") is not None else None
                     cur.execute("""
                         INSERT INTO cashier_reports
                             (report_date, schedule_entry_id, board_number, gov_number, driver_name,
@@ -1611,8 +1620,9 @@ def handler(event: dict, context) -> dict:
                              bills_5000, bills_2000, bills_1000, bills_500, bills_200, bills_100, bills_50, bills_10,
                              coins_10, coins_5, coins_2, coins_1,
                              cashless_amount, is_overtime, notes, created_by,
-                             fuel_cash_amount, fuel_liters, fuel_price_per_liter, tickets_sold)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                             fuel_cash_amount, fuel_liters, fuel_price_per_liter, tickets_sold,
+                             bonus_cash, cash_manual)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                         ON CONFLICT (report_date, schedule_entry_id)
                         DO UPDATE SET
                             bills_5000=EXCLUDED.bills_5000, bills_2000=EXCLUDED.bills_2000,
@@ -1626,6 +1636,8 @@ def handler(event: dict, context) -> dict:
                             fuel_liters=EXCLUDED.fuel_liters,
                             fuel_price_per_liter=EXCLUDED.fuel_price_per_liter,
                             tickets_sold=EXCLUDED.tickets_sold,
+                            bonus_cash=EXCLUDED.bonus_cash,
+                            cash_manual=EXCLUDED.cash_manual,
                             notes=EXCLUDED.notes, updated_at=NOW()
                         RETURNING *
                     """, (
@@ -1646,6 +1658,7 @@ def handler(event: dict, context) -> dict:
                         body.get("notes") or None,
                         body.get("created_by") or None,
                         fuel_cash, fuel_liters, fuel_price_per_liter, tickets_sold,
+                        bonus_cash_val, cash_manual_val,
                     ))
                     conn.commit()
                     row = dict(cur.fetchone())

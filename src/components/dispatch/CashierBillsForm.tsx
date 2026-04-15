@@ -1,8 +1,8 @@
-import { useState, Fragment } from "react";
+import { useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import Icon from "@/components/ui/icon";
-import { ScheduleRow, BILLS, fmt } from "./cashierTypes";
+import { ScheduleRow, fmt } from "./cashierTypes";
 
 interface BillsFormProps {
   row: ScheduleRow;
@@ -15,29 +15,31 @@ interface BillsFormProps {
 
 export default function CashierBillsForm({ row, date, ticketPrice = 35, fuelPriceDefault = 72, onSaved, onClose }: BillsFormProps) {
   const { user } = useAuth();
-  const [bills, setBills] = useState<Record<string, number>>(() => {
-    const init: Record<string, number> = {};
-    BILLS.forEach(b => { init[b.key] = Number((row as Record<string, unknown>)[b.key]) || 0; });
-    return init;
-  });
-  const [cashless, setCashless] = useState(String(row.cashless_amount || "0"));
+  const [cashManual, setCashManual] = useState(String(
+    (row as Record<string, unknown>).cash_manual ?? (Number(row.cash_total) > 0 ? row.cash_total : "")
+  ));
+  const [cashless, setCashless] = useState(String(row.cashless_amount || ""));
+  const [fuelCash, setFuelCash] = useState(String((row as Record<string, unknown>).fuel_cash_amount || ""));
+  const [bonusCash, setBonusCash] = useState(String((row as Record<string, unknown>).bonus_cash || ""));
+  const [ticketsSold, setTicketsSold] = useState(String(row.tickets_sold ?? ""));
   const [notes, setNotes] = useState(row.notes || "");
   const [saving, setSaving] = useState(false);
-  const [ticketsSold, setTicketsSold] = useState(String(row.tickets_sold ?? ""));
-  // Топливо за наличку
-  const [fuelCash, setFuelCash] = useState(String((row as Record<string,unknown>).fuel_cash_amount || ""));
-  const [fuelLiters, setFuelLiters] = useState(String((row as Record<string,unknown>).fuel_liters || ""));
-  const [fuelPrice, setFuelPrice] = useState(String((row as Record<string,unknown>).fuel_price_per_liter || fuelPriceDefault || ""));
 
-  const cashTotal = BILLS.reduce((s, b) => s + (bills[b.key] || 0) * b.value, 0);
-  const autoFuelCash = (parseFloat(fuelLiters) || 0) * (parseFloat(fuelPrice) || 0);
-  const fuelCashFinal = fuelCash ? parseFloat(fuelCash) : autoFuelCash || 0;
-  const autoTickets = ticketPrice > 0 && cashTotal > 0 ? Math.floor(cashTotal / ticketPrice) : 0;
+  const cashVal = parseFloat(cashManual) || 0;
+  const cashlessVal = parseFloat(cashless) || 0;
+  const fuelVal = parseFloat(fuelCash) || 0;
+  const bonusVal = parseFloat(bonusCash) || 0;
+  const revenue = cashVal + cashlessVal + bonusVal;
+  const autoTickets = ticketPrice > 0 && cashVal > 0 ? Math.floor(cashVal / ticketPrice) : 0;
 
   async function save() {
     setSaving(true);
-    const cashlessVal = parseFloat(cashless) || 0;
     const ticketsNum = ticketsSold ? parseInt(ticketsSold) : (autoTickets > 0 ? autoTickets : null);
+    const fpVal = fuelPriceDefault || 72;
+    let fuelLitersCalc: number | null = null;
+    if (fuelVal > 0 && fpVal > 0) {
+      fuelLitersCalc = Math.round((fuelVal / fpVal) * 100) / 100;
+    }
     await api.saveCashierReport({
       report_date: date,
       schedule_entry_id: row.schedule_entry_id,
@@ -51,25 +53,23 @@ export default function CashierBillsForm({ row, date, ticketPrice = 35, fuelPric
       cashless_amount: cashlessVal,
       notes: notes || null,
       created_by: user?.full_name || null,
-      fuel_cash_amount: fuelCashFinal,
-      fuel_liters: fuelLiters ? parseFloat(fuelLiters) : null,
-      fuel_price_per_liter: fuelPrice ? parseFloat(fuelPrice) : null,
+      fuel_cash_amount: fuelVal,
+      fuel_liters: fuelLitersCalc,
+      fuel_price_per_liter: fpVal,
       tickets_sold: ticketsNum,
-      ...bills,
+      bonus_cash: bonusVal,
+      cash_manual: cashVal > 0 ? cashVal : null,
+      bills_5000: 0, bills_2000: 0, bills_1000: 0, bills_500: 0,
+      bills_200: 0, bills_100: 0, bills_50: 0, bills_10: 0,
+      coins_10: 0, coins_5: 0, coins_2: 0, coins_1: 0,
     });
-    // Синхронизируем данные кассы в наряд
     if (row.schedule_entry_id) {
-      const fpVal = fuelPrice ? parseFloat(fuelPrice) : fuelPriceDefault;
-      let fuelLitersForSchedule: number | null = fuelLiters ? parseFloat(fuelLiters) : null;
-      if (!fuelLitersForSchedule && fuelCashFinal > 0 && fpVal > 0) {
-        fuelLitersForSchedule = Math.round((fuelCashFinal / fpVal) * 100) / 100;
-      }
       await api.patchScheduleRevenue({
         id: row.schedule_entry_id,
-        revenue_cash: cashTotal,
+        revenue_cash: cashVal,
         revenue_cashless: cashlessVal,
-        revenue_total: cashTotal + cashlessVal,
-        fuel_spent: fuelLitersForSchedule,
+        revenue_total: revenue,
+        fuel_spent: fuelLitersCalc,
         fuel_price_override: fpVal,
         tickets_sold: ticketsNum,
       });
@@ -81,7 +81,7 @@ export default function CashierBillsForm({ row, date, ticketPrice = 35, fuelPric
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200">
           <div>
             <div className="font-semibold text-neutral-900">
@@ -122,104 +122,80 @@ export default function CashierBillsForm({ row, date, ticketPrice = 35, fuelPric
         {row.is_overtime && (
           <div className="mx-5 mt-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-xs text-blue-700">
             <Icon name="Clock" size={13} />
-            Отмечена подработка диспетчером
+            Подработка
           </div>
         )}
 
         <div className="px-5 py-4 space-y-3">
-          {/* Покупюрная таблица */}
-          <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-1">Наличные — покупюрно</div>
-          <div className="border border-neutral-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-neutral-50 text-xs text-neutral-500">
-                  <th className="px-3 py-2 text-left font-medium">Купюра</th>
-                  <th className="px-3 py-2 text-center font-medium w-20">Кол-во</th>
-                  <th className="px-3 py-2 text-right font-medium">Сумма</th>
-                </tr>
-              </thead>
-              <tbody>
-                {BILLS.map((b, i) => {
-                  const qty = bills[b.key] || 0;
-                  const sum = qty * b.value;
-                  const showDivider = i === 7;
-                  return (
-                    <Fragment key={b.key}>
-                      {showDivider && (
-                        <tr>
-                          <td colSpan={3} className="bg-neutral-100 px-3 py-1 text-xs text-neutral-400 font-medium">Монеты</td>
-                        </tr>
-                      )}
-                      <tr className="border-t border-neutral-100">
-                        <td className="px-3 py-1.5 text-neutral-700 font-medium">{b.label}</td>
-                        <td className="px-3 py-1.5 text-center">
-                          <input
-                            type="number" min="0"
-                            value={qty === 0 ? "" : qty}
-                            onChange={e => setBills(prev => ({ ...prev, [b.key]: parseInt(e.target.value) || 0 }))}
-                            placeholder="0"
-                            className="w-16 text-center border border-neutral-200 rounded px-1.5 py-0.5 text-sm focus:outline-none focus:border-neutral-500"
-                          />
-                        </td>
-                        <td className={`px-3 py-1.5 text-right font-mono text-xs ${sum > 0 ? "text-neutral-800 font-semibold" : "text-neutral-300"}`}>
-                          {sum > 0 ? fmt(sum) : "—"}
-                        </td>
-                      </tr>
-                    </Fragment>
-                  );
-                })}
-                <tr className="border-t-2 border-neutral-300 bg-neutral-50">
-                  <td className="px-3 py-2 font-bold text-neutral-900" colSpan={2}>Итого наличных</td>
-                  <td className="px-3 py-2 text-right font-bold text-green-700 font-mono">{fmt(cashTotal)} ₽</td>
-                </tr>
-              </tbody>
-            </table>
+          <div>
+            <label className="block text-xs font-semibold text-green-700 mb-1.5 uppercase tracking-wide">
+              Нал, ₽
+            </label>
+            <input
+              type="number" min="0" step="0.01"
+              value={cashManual}
+              onChange={e => setCashManual(e.target.value)}
+              placeholder="0.00"
+              className="w-full border-2 border-green-300 rounded-lg px-3 py-2.5 text-lg font-bold text-green-800 focus:outline-none focus:border-green-500 bg-green-50/50"
+              autoFocus
+            />
+            {autoTickets > 0 && !ticketsSold && (
+              <div className="text-xs text-green-600 mt-1">
+                ≈ {autoTickets} билетов ({fmt(cashVal)} ÷ {ticketPrice} ₽)
+              </div>
+            )}
           </div>
 
-          {/* Топливо за наличку */}
-          <div className="border border-amber-200 bg-amber-50 rounded-lg p-3">
-            <div className="text-xs font-semibold text-amber-700 mb-2 flex items-center gap-1.5">
-              <Icon name="Fuel" size={13} /> Топливо (оплата наличными)
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="block text-xs text-neutral-600 mb-1">Литры</label>
-                <input type="number" min="0" step="0.1"
-                  value={fuelLiters}
-                  onChange={e => setFuelLiters(e.target.value)}
-                  placeholder="0.0"
-                  className="w-full border border-neutral-200 rounded px-2 py-1.5 text-sm bg-white" />
+          <div>
+            <label className="block text-xs font-semibold text-amber-700 mb-1.5 uppercase tracking-wide">
+              ДТ, ₽
+            </label>
+            <input
+              type="number" min="0" step="0.01"
+              value={fuelCash}
+              onChange={e => setFuelCash(e.target.value)}
+              placeholder="0.00"
+              className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm font-semibold text-amber-800 focus:outline-none focus:border-amber-500 bg-amber-50/50"
+            />
+            {fuelVal > 0 && fuelPriceDefault > 0 && (
+              <div className="text-xs text-amber-600 mt-1">
+                ≈ {(fuelVal / fuelPriceDefault).toFixed(1)} л (по {fuelPriceDefault} ₽/л)
               </div>
-              <div>
-                <label className="block text-xs text-neutral-600 mb-1">Цена, ₽/л</label>
-                <input type="number" min="0" step="0.01"
-                  value={fuelPrice}
-                  onChange={e => setFuelPrice(e.target.value)}
-                  placeholder="72.00"
-                  className="w-full border border-neutral-200 rounded px-2 py-1.5 text-sm bg-white" />
-              </div>
-              <div>
-                <label className="block text-xs text-neutral-600 mb-1">
-                  Сумма, ₽ {autoFuelCash > 0 && fuelCash === "" ? <span className="text-amber-600">(авто)</span> : null}
-                </label>
-                <input type="number" min="0" step="0.01"
-                  value={fuelCash || (autoFuelCash > 0 ? String(autoFuelCash.toFixed(2)) : "")}
-                  onChange={e => setFuelCash(e.target.value)}
-                  placeholder={autoFuelCash > 0 ? String(autoFuelCash.toFixed(2)) : "0.00"}
-                  className="w-full border border-neutral-200 rounded px-2 py-1.5 text-sm bg-white" />
-              </div>
-            </div>
-            <div className="text-xs text-neutral-500 mt-1.5">
-              Сумма будет вычтена из наличных водителя. В сводке отобразятся литры.
-            </div>
+            )}
           </div>
 
-          {/* Кол-во билетов */}
+          <div>
+            <label className="block text-xs font-semibold text-blue-700 mb-1.5 uppercase tracking-wide">
+              Безнал, ₽
+            </label>
+            <input
+              type="number" min="0" step="0.01"
+              value={cashless}
+              onChange={e => setCashless(e.target.value)}
+              placeholder="0.00"
+              className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm font-semibold text-blue-800 focus:outline-none focus:border-blue-500 bg-blue-50/50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-purple-700 mb-1.5 uppercase tracking-wide">
+              В плюс, ₽
+            </label>
+            <input
+              type="number" min="0" step="0.01"
+              value={bonusCash}
+              onChange={e => setBonusCash(e.target.value)}
+              placeholder="0.00"
+              className="w-full border border-purple-300 rounded-lg px-3 py-2 text-sm font-semibold text-purple-800 focus:outline-none focus:border-purple-500 bg-purple-50/50"
+            />
+            <div className="text-xs text-purple-500 mt-1">Наличные, которые плюсуются к выручке</div>
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-neutral-600 mb-1.5">
-              Количество проданных билетов
+              Билеты
               {autoTickets > 0 && !ticketsSold && (
-                <span className="text-green-600 ml-1">(авто: {autoTickets} = {fmt(cashTotal)} ÷ {ticketPrice} ₽)</span>
+                <span className="text-green-600 ml-1">(авто: {autoTickets})</span>
               )}
             </label>
             <input
@@ -229,26 +205,8 @@ export default function CashierBillsForm({ row, date, ticketPrice = 35, fuelPric
               placeholder={autoTickets > 0 ? String(autoTickets) : "0"}
               className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-neutral-500"
             />
-            <div className="text-xs text-neutral-400 mt-1">
-              {autoTickets > 0 && !ticketsSold
-                ? "Рассчитано из суммы НАЛ автоматически"
-                : "Отобразится в наряде у диспетчера"}
-            </div>
           </div>
 
-          {/* Безнал */}
-          <div>
-            <label className="block text-xs font-medium text-neutral-600 mb-1.5">Безналичные, ₽</label>
-            <input
-              type="number" min="0" step="0.01"
-              value={cashless}
-              onChange={e => setCashless(e.target.value)}
-              placeholder="0.00"
-              className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-
-          {/* Примечание */}
           <div>
             <label className="block text-xs font-medium text-neutral-600 mb-1.5">Примечание</label>
             <textarea
@@ -260,38 +218,38 @@ export default function CashierBillsForm({ row, date, ticketPrice = 35, fuelPric
             />
           </div>
 
-          {/* Итог */}
-          {(() => {
-            const fuelCashFinal = fuelCash ? parseFloat(fuelCash) : autoFuelCash;
-            const totalCash = cashTotal - fuelCashFinal;
-            return (
-              <div className="bg-neutral-50 border border-neutral-200 rounded-lg px-4 py-3 space-y-1">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-neutral-600">Наличные выручка</span>
-                  <span className="font-semibold">{fmt(cashTotal)} ₽</span>
-                </div>
-                {fuelCashFinal > 0 && (
-                  <div className="flex justify-between items-center text-xs text-amber-700">
-                    <span>− Топливо наличными ({fuelLiters ? parseFloat(fuelLiters) : "—"} л)</span>
-                    <span>−{fmt(fuelCashFinal)} ₽</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center border-t border-neutral-200 pt-1.5">
-                  <span className="text-sm font-medium text-neutral-700">К получению</span>
-                  <span className="text-lg font-bold text-neutral-900">{fmt(Math.max(0, totalCash) + (parseFloat(cashless) || 0))} ₽</span>
-                </div>
+          <div className="bg-neutral-100 rounded-lg p-3 space-y-1">
+            <div className="flex justify-between text-xs">
+              <span className="text-neutral-500">Нал</span>
+              <span className="font-semibold text-green-700 font-mono">{fmt(cashVal)} ₽</span>
+            </div>
+            {cashlessVal > 0 && (
+              <div className="flex justify-between text-xs">
+                <span className="text-neutral-500">Безнал</span>
+                <span className="font-semibold text-blue-700 font-mono">+ {fmt(cashlessVal)} ₽</span>
               </div>
-            );
-          })()}
+            )}
+            {bonusVal > 0 && (
+              <div className="flex justify-between text-xs">
+                <span className="text-neutral-500">В плюс</span>
+                <span className="font-semibold text-purple-700 font-mono">+ {fmt(bonusVal)} ₽</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm border-t border-neutral-300 pt-1.5 mt-1.5">
+              <span className="font-bold text-neutral-800">Выручка</span>
+              <span className="font-bold text-neutral-900 font-mono">{fmt(revenue)} ₽</span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex gap-3 px-5 py-4 border-t border-neutral-200">
+        <div className="border-t border-neutral-200 px-5 py-4 flex gap-3">
           <button onClick={onClose}
-            className="flex-1 py-2 text-sm border border-neutral-200 rounded-lg text-neutral-600 hover:bg-neutral-50 cursor-pointer transition-colors">
+            className="flex-1 border border-neutral-300 text-neutral-700 rounded-lg py-2.5 text-sm hover:bg-neutral-100 transition-colors cursor-pointer">
             Отмена
           </button>
           <button onClick={save} disabled={saving}
-            className="flex-1 py-2 text-sm bg-neutral-900 text-white rounded-lg hover:bg-neutral-700 disabled:opacity-50 cursor-pointer transition-colors">
+            className="flex-1 bg-neutral-900 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-neutral-800 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2">
+            {saving ? <Icon name="Loader2" size={14} className="animate-spin" /> : <Icon name="Check" size={14} />}
             {saving ? "Сохранение..." : "Сохранить"}
           </button>
         </div>

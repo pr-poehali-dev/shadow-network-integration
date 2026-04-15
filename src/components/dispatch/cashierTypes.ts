@@ -25,6 +25,8 @@ export interface ScheduleRow {
   fuel_cost: number;
   fuel_cash_amount: number;
   fuel_price_per_liter: number | null;
+  bonus_cash: number;
+  cash_manual: number | null;
   lunch_amount: number;
   notes: string | null;
   restriction: Restriction | null;
@@ -44,6 +46,7 @@ export interface CashierSummary {
   duty_car_fuel_cost: number;
   fuel_price: number;
   ticket_price: number;
+  total_bonus: number;
 }
 
 export interface CashRestriction {
