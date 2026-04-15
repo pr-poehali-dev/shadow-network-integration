@@ -65,15 +65,23 @@ export default function SalesPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const savingRef = useRef<Record<number, boolean>>({});
+
   const saveFuel = useCallback(async (row: SalesRow) => {
-    const litersStr = fuelEdits[row.schedule_entry_id];
+    const id = row.schedule_entry_id;
+    if (savingRef.current[id]) return;
+    savingRef.current[id] = true;
+    const litersStr = fuelEdits[id];
     const liters = parseFloat(litersStr) || null;
-    setSavingId(row.schedule_entry_id);
-    await api.patchScheduleRevenue({
-      id: row.schedule_entry_id,
-      fuel_spent: liters,
-      fuel_price_override: fuelPrice,
-    });
+    setSavingId(id);
+    try {
+      await api.patchScheduleRevenue({
+        id,
+        fuel_spent: liters,
+        fuel_price_override: fuelPrice,
+      });
+    } catch { /* ignore */ }
+    savingRef.current[id] = false;
     setSavingId(null);
   }, [fuelEdits, fuelPrice]);
 
@@ -81,13 +89,13 @@ export default function SalesPage() {
     setFuelEdits(prev => ({ ...prev, [row.schedule_entry_id]: value }));
     const id = row.schedule_entry_id;
     if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
-    saveTimers.current[id] = setTimeout(() => saveFuel(row), 1500);
+    saveTimers.current[id] = setTimeout(() => saveFuel(row), 3000);
   };
 
   const handleFuelBlur = (row: SalesRow) => {
     const id = row.schedule_entry_id;
     if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
-    saveFuel(row);
+    setTimeout(() => saveFuel(row), 300);
   };
 
   const allRows = rows;

@@ -62,10 +62,15 @@ export default function CashierPage() {
     setEdits(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   };
 
+  const savingRef = useRef<Record<number, boolean>>({});
+
   const saveRow = useCallback(async (row: ScheduleRow) => {
-    const e = edits[row.schedule_entry_id];
+    const id = row.schedule_entry_id;
+    const e = edits[id];
     if (!e) return;
-    setSavingId(row.schedule_entry_id);
+    if (savingRef.current[id]) return;
+    savingRef.current[id] = true;
+    setSavingId(id);
     const cashVal = parseFloat(e.cash) || 0;
     const cashlessVal = parseFloat(e.cashless) || 0;
     const fuelVal = parseFloat(e.fuel) || 0;
@@ -74,56 +79,56 @@ export default function CashierPage() {
     const fpVal = summary.fuel_price || 72;
     const fuelLiters = fuelVal > 0 && fpVal > 0 ? Math.round((fuelVal / fpVal) * 100) / 100 : null;
     const revenue = cashVal + cashlessVal + bonusVal;
-
-    await Promise.all([
-      api.saveCashierReport({
-        report_date: date,
-        schedule_entry_id: row.schedule_entry_id,
-        board_number: row.board_number,
-        gov_number: row.gov_number,
-        driver_name: row.driver_name,
-        route_number: row.route_number,
-        graph_number: row.graph_number,
-        organization: row.organization,
-        is_overtime: row.is_overtime,
-        cashless_amount: cashlessVal,
-        notes: null,
-        created_by: user?.full_name || null,
-        fuel_cash_amount: fuelVal,
-        fuel_liters: fuelLiters,
-        fuel_price_per_liter: fpVal,
-        tickets_sold: ticketsNum,
-        bonus_cash: bonusVal,
-        cash_manual: cashVal > 0 ? cashVal : null,
-        bills_5000: 0, bills_2000: 0, bills_1000: 0, bills_500: 0,
-        bills_200: 0, bills_100: 0, bills_50: 0, bills_10: 0,
-        coins_10: 0, coins_5: 0, coins_2: 0, coins_1: 0,
-      }),
-      api.patchScheduleRevenue({
-        id: row.schedule_entry_id,
-        revenue_cash: cashVal,
-        revenue_cashless: cashlessVal,
-        revenue_total: revenue,
-        fuel_spent: fuelLiters,
-        fuel_price_override: fpVal,
-        tickets_sold: ticketsNum,
-      }),
-    ]);
+    try {
+      await Promise.all([
+        api.saveCashierReport({
+          report_date: date,
+          schedule_entry_id: id,
+          board_number: row.board_number,
+          gov_number: row.gov_number,
+          driver_name: row.driver_name,
+          route_number: row.route_number,
+          graph_number: row.graph_number,
+          organization: row.organization,
+          is_overtime: row.is_overtime,
+          cashless_amount: cashlessVal,
+          notes: null,
+          created_by: user?.full_name || null,
+          fuel_cash_amount: fuelVal,
+          fuel_liters: fuelLiters,
+          fuel_price_per_liter: fpVal,
+          tickets_sold: ticketsNum,
+          bonus_cash: bonusVal,
+          cash_manual: cashVal > 0 ? cashVal : null,
+          bills_5000: 0, bills_2000: 0, bills_1000: 0, bills_500: 0,
+          bills_200: 0, bills_100: 0, bills_50: 0, bills_10: 0,
+          coins_10: 0, coins_5: 0, coins_2: 0, coins_1: 0,
+        }),
+        api.patchScheduleRevenue({
+          id,
+          revenue_cash: cashVal,
+          revenue_cashless: cashlessVal,
+          revenue_total: revenue,
+          fuel_spent: fuelLiters,
+          fuel_price_override: fpVal,
+          tickets_sold: ticketsNum,
+        }),
+      ]);
+    } catch { /* ignore network errors */ }
+    savingRef.current[id] = false;
     setSavingId(null);
-    load();
-  }, [edits, date, summary, user, load]);
+  }, [edits, date, summary, user]);
 
   const scheduleAutoSave = useCallback((row: ScheduleRow) => {
     const id = row.schedule_entry_id;
     if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
-    saveTimers.current[id] = setTimeout(() => saveRow(row), 1500);
+    saveTimers.current[id] = setTimeout(() => saveRow(row), 3000);
   }, [saveRow]);
 
   const handleBlur = (row: ScheduleRow) => {
-    if (saveTimers.current[row.schedule_entry_id]) {
-      clearTimeout(saveTimers.current[row.schedule_entry_id]);
-    }
-    saveRow(row);
+    const id = row.schedule_entry_id;
+    if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
+    setTimeout(() => saveRow(row), 300);
   };
 
   const getRowCalc = (row: ScheduleRow) => {
