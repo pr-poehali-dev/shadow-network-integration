@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import Icon from "@/components/ui/icon";
 
@@ -23,30 +23,28 @@ interface SalesRow {
   organization: string | null;
 }
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+function today() { return new Date().toISOString().slice(0, 10); }
+function fmt(n: number) { return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
-function fmt(n: number) {
-  return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+type FuelEdits = Record<number, string>;
 
 export default function SalesPage() {
   const [date, setDate] = useState(today());
   const [rows, setRows] = useState<SalesRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [totalTickets, setTotalTickets] = useState(0);
-  const [totalFuelLiters, setTotalFuelLiters] = useState(0);
-  const [totalCashless, setTotalCashless] = useState(0);
-
   const [fuelPrice, setFuelPrice] = useState(72);
+  const [fuelEdits, setFuelEdits] = useState<FuelEdits>({});
+  const [savingId, setSavingId] = useState<number | null>(null);
+  const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
-  const getFuelLiters = (r: SalesRow) => {
+  const getFuelLiters = useCallback((r: SalesRow): number => {
+    const edit = fuelEdits[r.schedule_entry_id];
+    if (edit !== undefined && edit !== "") return parseFloat(edit) || 0;
     if (Number(r.fuel_liters_total) > 0) return Number(r.fuel_liters_total);
     if (Number(r.fuel_spent) > 0) return Number(r.fuel_spent);
     if (Number(r.fuel_cash_amount) > 0 && fuelPrice > 0) return Number(r.fuel_cash_amount) / fuelPrice;
     return 0;
-  };
+  }, [fuelEdits, fuelPrice]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,21 +53,50 @@ export default function SalesPage() {
     const fp = Number(data.fuel_price) || 72;
     setFuelPrice(fp);
     setRows(r);
-    setTotalTickets(r.reduce((s, row) => s + (Number(row.tickets_sold) || 0), 0));
-    setTotalFuelLiters(r.reduce((s, row) => {
+    const edMap: FuelEdits = {};
+    r.forEach(row => {
       let liters = Number(row.fuel_liters_total) || Number(row.fuel_spent) || 0;
-      if (!liters && Number(row.fuel_cash_amount) > 0 && fp > 0) liters = Number(row.fuel_cash_amount) / fp;
-      return s + liters;
-    }, 0));
-    setTotalCashless(Number(data.total_cashless) || 0);
+      if (!liters && Number(row.fuel_cash_amount) > 0 && fp > 0) liters = Math.round((Number(row.fuel_cash_amount) / fp) * 10) / 10;
+      if (liters > 0) edMap[row.schedule_entry_id] = String(liters);
+    });
+    setFuelEdits(edMap);
     setLoading(false);
   }, [date]);
 
   useEffect(() => { load(); }, [load]);
 
+  const saveFuel = useCallback(async (row: SalesRow) => {
+    const litersStr = fuelEdits[row.schedule_entry_id];
+    const liters = parseFloat(litersStr) || null;
+    setSavingId(row.schedule_entry_id);
+    await api.patchScheduleRevenue({
+      id: row.schedule_entry_id,
+      fuel_spent: liters,
+      fuel_price_override: fuelPrice,
+    });
+    setSavingId(null);
+  }, [fuelEdits, fuelPrice]);
+
+  const handleFuelChange = (row: SalesRow, value: string) => {
+    setFuelEdits(prev => ({ ...prev, [row.schedule_entry_id]: value }));
+    const id = row.schedule_entry_id;
+    if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
+    saveTimers.current[id] = setTimeout(() => saveFuel(row), 1500);
+  };
+
+  const handleFuelBlur = (row: SalesRow) => {
+    const id = row.schedule_entry_id;
+    if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
+    saveFuel(row);
+  };
+
   const allRows = rows;
   const filledRows = rows.filter(r => r.report_id != null);
   const orgs = [...new Set(allRows.map(r => r.organization || ""))].filter(Boolean);
+
+  const totalTickets = allRows.reduce((s, r) => s + (Number(r.tickets_sold) || 0), 0);
+  const totalFuelLiters = allRows.reduce((s, r) => s + getFuelLiters(r), 0);
+  const totalCashless = allRows.reduce((s, r) => s + (Number(r.cashless_amount) || 0), 0);
 
   const [y, m, d] = date.split("-");
   const dateLabel = `${d}.${m}.${y}`;
@@ -77,7 +104,6 @@ export default function SalesPage() {
   function handlePrint() {
     const showOrgHeader = orgs.length > 1;
     let rowNum = 0;
-
     const buildTableRows = (filtered: SalesRow[]) =>
       filtered.map(r => {
         rowNum++;
@@ -120,8 +146,7 @@ export default function SalesPage() {
 <title>Продажи ${dateLabel}</title>
 <style>
   body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:15px}
-  h1{font-size:15px;margin-bottom:3px}
-  p.sub{font-size:10px;color:#666;margin:0 0 10px}
+  h1{font-size:15px;margin-bottom:3px} p.sub{font-size:10px;color:#666;margin:0 0 10px}
   .cards{display:flex;gap:12px;margin-bottom:12px}
   .card{border:1px solid #e5e7eb;border-radius:4px;padding:7px 14px;min-width:130px}
   .card .lbl{font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.04em}
@@ -131,30 +156,23 @@ export default function SalesPage() {
   th{background:#f3f4f6;padding:4px 6px;border:1px solid #d1d5db;font-size:10px;white-space:nowrap;text-align:left}
   td{padding:3px 6px;border:1px solid #e5e7eb;font-size:10px;white-space:nowrap}
   .c{text-align:center} .r{text-align:right} .bold{font-weight:700} .mono{font-family:monospace}
-  tfoot tr{background:#1f2937!important;color:#fff}
-  tfoot td{border-color:#374151}
+  tfoot tr{background:#1f2937!important;color:#fff} tfoot td{border-color:#374151}
   .footer{margin-top:20px;font-size:10px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:8px;display:flex;justify-content:space-between}
   @media print{@page{size:A4 portrait;margin:8mm}}
 </style></head><body>
 <h1>Сводная таблица продаж за ${dateLabel}</h1>
-<p class="sub">Сформировано: ${new Date().toLocaleString("ru-RU")} &nbsp;·&nbsp; ${filledRows.length} из ${allRows.length} ТС с отчётом кассира</p>
-
+<p class="sub">Сформировано: ${new Date().toLocaleString("ru-RU")} · ${filledRows.length} из ${allRows.length} ТС с отчётом</p>
 <div class="cards">
   <div class="card"><div class="lbl">Билетов продано</div><div class="val indigo">${totalTickets > 0 ? totalTickets : "—"}</div></div>
   <div class="card"><div class="lbl">Расход ДТ</div><div class="val amber">${totalFuelLiters > 0 ? totalFuelLiters.toFixed(1) + " л" : "—"}</div></div>
   <div class="card"><div class="lbl">Безналичные</div><div class="val blue">${totalCashless > 0 ? fmt(totalCashless) + " ₽" : "—"}</div></div>
 </div>
-
 <table>
 <thead><tr>
-  <th class="c" style="width:28px">№</th>
-  <th class="c">Маршрут / Граф.</th>
-  <th class="c">Борт</th>
-  <th>ФИО экипажа</th>
+  <th class="c" style="width:28px">№</th><th class="c">Маршрут / Граф.</th><th class="c">Борт</th><th>ФИО экипажа</th>
   <th class="c" style="background:#eef2ff;color:#4338ca">Билеты</th>
   <th class="c" style="background:#fffbeb;color:#b45309">ДТ, л</th>
-  <th class="r" style="color:#1d4ed8">Безнал, ₽</th>
-  <th class="c">Подраб.</th>
+  <th class="r" style="color:#1d4ed8">Безнал, ₽</th><th class="c">Подраб.</th>
 </tr></thead>
 <tbody>${bodyRows}</tbody>
 <tfoot><tr>
@@ -165,11 +183,7 @@ export default function SalesPage() {
   <td></td>
 </tr></tfoot>
 </table>
-
-<div class="footer">
-  <span>Диспетчер: _____________________________</span>
-  <span>Дата: ${dateLabel}</span>
-</div>
+<div class="footer"><span>Диспетчер: _____________________________</span><span>Дата: ${dateLabel}</span></div>
 </body></html>`;
 
     const win = window.open("", "_blank");
@@ -180,9 +194,11 @@ export default function SalesPage() {
     setTimeout(() => win.print(), 400);
   }
 
+  const cellCls = "border border-neutral-200 px-1 py-0";
+  const inputCls = "w-full bg-transparent text-center text-xs font-mono py-1.5 px-1 focus:outline-none focus:bg-amber-50 tabular-nums";
+
   return (
     <div className="space-y-5">
-      {/* Заголовок */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold text-neutral-900">Продажи</h1>
         <div className="flex items-center gap-2">
@@ -193,11 +209,10 @@ export default function SalesPage() {
               Распечатать
             </button>
           )}
-          <div className="text-xs text-neutral-400">Данные заполняются кассиром</div>
+          {savingId && <span className="text-xs text-blue-500 flex items-center gap-1"><Icon name="Loader2" size={12} className="animate-spin" />сохранение...</span>}
         </div>
       </div>
 
-      {/* Дата */}
       <div className="flex items-center gap-3">
         <button onClick={() => { const dt = new Date(date); dt.setDate(dt.getDate() - 1); setDate(dt.toISOString().slice(0, 10)); }}
           className="border border-neutral-200 p-2 rounded hover:bg-neutral-100 cursor-pointer transition-colors">
@@ -210,12 +225,8 @@ export default function SalesPage() {
           <Icon name="ChevronRight" size={16} />
         </button>
         <span className="text-xs text-neutral-400">{dateLabel}</span>
-        <button onClick={load} className="ml-2 border border-neutral-200 p-2 rounded hover:bg-neutral-100 cursor-pointer transition-colors" title="Обновить">
-          <Icon name="RefreshCw" size={14} />
-        </button>
       </div>
 
-      {/* Карточки итогов */}
       <div className="grid grid-cols-3 gap-4">
         <div className="border border-indigo-200 bg-indigo-50 rounded-lg p-4">
           <div className="text-xs text-indigo-600 font-semibold uppercase tracking-wide mb-1 flex items-center gap-1.5">
@@ -224,7 +235,6 @@ export default function SalesPage() {
           <div className="text-2xl font-bold text-indigo-700">
             {totalTickets > 0 ? totalTickets : <span className="text-neutral-400 text-base font-normal">нет данных</span>}
           </div>
-          <div className="text-xs text-indigo-400 mt-1">из {filledRows.length} ТС с отчётом</div>
         </div>
         <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
           <div className="text-xs text-amber-600 font-semibold uppercase tracking-wide mb-1 flex items-center gap-1.5">
@@ -233,7 +243,6 @@ export default function SalesPage() {
           <div className="text-2xl font-bold text-amber-700">
             {totalFuelLiters > 0 ? `${totalFuelLiters.toFixed(1)} л` : <span className="text-neutral-400 text-base font-normal">нет данных</span>}
           </div>
-          <div className="text-xs text-amber-400 mt-1">суммарно по всем ТС</div>
         </div>
         <div className="border border-blue-200 bg-blue-50 rounded-lg p-4">
           <div className="text-xs text-blue-600 font-semibold uppercase tracking-wide mb-1 flex items-center gap-1.5">
@@ -242,7 +251,6 @@ export default function SalesPage() {
           <div className="text-2xl font-bold text-blue-700">
             {totalCashless > 0 ? `${fmt(totalCashless)} ₽` : <span className="text-neutral-400 text-base font-normal">нет данных</span>}
           </div>
-          <div className="text-xs text-blue-400 mt-1">с терминалов</div>
         </div>
       </div>
 
@@ -266,7 +274,7 @@ export default function SalesPage() {
                   <th className="border border-neutral-300 px-2 py-2 text-center font-semibold text-neutral-700 whitespace-nowrap">Борт</th>
                   <th className="border border-neutral-300 px-2 py-2 text-left font-semibold text-neutral-700 min-w-[150px]">ФИО экипажа</th>
                   <th className="border border-neutral-300 px-2 py-2 text-center font-semibold text-indigo-700 whitespace-nowrap bg-indigo-50">Билеты</th>
-                  <th className="border border-neutral-300 px-2 py-2 text-center font-semibold text-amber-700 whitespace-nowrap bg-amber-50">ДТ, л</th>
+                  <th className="border border-neutral-300 px-2 py-2 text-center font-semibold text-amber-700 whitespace-nowrap bg-amber-50 w-20">ДТ, л</th>
                   <th className="border border-neutral-300 px-2 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">Безнал, ₽</th>
                   <th className="border border-neutral-300 px-2 py-2 text-center font-semibold text-violet-700 whitespace-nowrap">Подраб.</th>
                   <th className="border border-neutral-300 px-2 py-2 text-center font-semibold text-neutral-500 whitespace-nowrap">Статус</th>
@@ -283,8 +291,8 @@ export default function SalesPage() {
                       rowNum++;
                       const crew = [r.driver_name, r.conductor_name].filter(Boolean).join(" / ");
                       const hasFilled = r.report_id != null;
-                      const fuelVal = getFuelLiters(r);
                       const cashless = Number(r.cashless_amount) || 0;
+                      const isSaving = savingId === r.schedule_entry_id;
                       return (
                         <tr key={r.schedule_entry_id}
                           className={`border-b border-neutral-200 ${rowNum % 2 === 0 ? "bg-neutral-50/50" : "bg-white"} ${!hasFilled ? "opacity-50" : ""}`}>
@@ -297,16 +305,16 @@ export default function SalesPage() {
                           <td className="border border-neutral-200 px-2 py-1.5 text-center bg-indigo-50">
                             {r.tickets_sold != null ? (
                               <span className="font-bold text-indigo-700 font-mono">{r.tickets_sold}</span>
-                            ) : (
-                              <span className="text-neutral-300">—</span>
-                            )}
+                            ) : <span className="text-neutral-300">—</span>}
                           </td>
-                          <td className="border border-neutral-200 px-2 py-1.5 text-center bg-amber-50">
-                            {fuelVal > 0 ? (
-                              <span className="font-semibold text-amber-700 font-mono">{fuelVal.toFixed(1)}</span>
-                            ) : (
-                              <span className="text-neutral-300">—</span>
-                            )}
+                          <td className={`${cellCls} bg-amber-50`}>
+                            <input type="number" min="0" step="0.1"
+                              value={fuelEdits[r.schedule_entry_id] ?? ""}
+                              onChange={ev => handleFuelChange(r, ev.target.value)}
+                              onBlur={() => handleFuelBlur(r)}
+                              placeholder="0"
+                              className={`${inputCls} text-amber-700 font-semibold`} />
+                            {isSaving && <Icon name="Loader2" size={10} className="animate-spin text-amber-500 inline ml-0.5" />}
                           </td>
                           <td className="border border-neutral-200 px-2 py-1.5 text-right font-mono text-blue-700">
                             {cashless > 0 ? fmt(cashless) : <span className="text-neutral-300">—</span>}
@@ -318,9 +326,9 @@ export default function SalesPage() {
                           </td>
                           <td className="border border-neutral-200 px-2 py-1.5 text-center">
                             {hasFilled ? (
-                              <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">заполнено</span>
+                              <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">✓</span>
                             ) : (
-                              <span className="text-xs bg-neutral-100 text-neutral-400 px-1.5 py-0.5 rounded">ожидание</span>
+                              <span className="text-xs bg-neutral-100 text-neutral-400 px-1.5 py-0.5 rounded">—</span>
                             )}
                           </td>
                         </tr>
@@ -346,24 +354,15 @@ export default function SalesPage() {
                   } else {
                     result.push(...renderRows(allRows));
                   }
-
                   return result;
                 })()}
               </tbody>
               <tfoot>
                 <tr className="bg-neutral-800 text-white font-bold text-xs">
-                  <td colSpan={4} className="border border-neutral-600 px-2 py-2 text-center">
-                    ИТОГО ({allRows.length} ТС)
-                  </td>
-                  <td className="border border-neutral-600 px-2 py-2 text-center bg-indigo-900 font-mono">
-                    {totalTickets > 0 ? totalTickets : "—"}
-                  </td>
-                  <td className="border border-neutral-600 px-2 py-2 text-center bg-amber-900 font-mono">
-                    {totalFuelLiters > 0 ? `${totalFuelLiters.toFixed(1)} л` : "—"}
-                  </td>
-                  <td className="border border-neutral-600 px-2 py-2 text-right text-blue-300 font-mono">
-                    {totalCashless > 0 ? fmt(totalCashless) : "—"}
-                  </td>
+                  <td colSpan={4} className="border border-neutral-600 px-2 py-2 text-center">ИТОГО ({allRows.length} ТС)</td>
+                  <td className="border border-neutral-600 px-2 py-2 text-center font-mono">{totalTickets > 0 ? totalTickets : "—"}</td>
+                  <td className="border border-neutral-600 px-2 py-2 text-center font-mono text-amber-300">{totalFuelLiters > 0 ? totalFuelLiters.toFixed(1) : "—"}</td>
+                  <td className="border border-neutral-600 px-2 py-2 text-right font-mono text-blue-300">{totalCashless > 0 ? fmt(totalCashless) : "—"}</td>
                   <td colSpan={2} className="border border-neutral-600 px-2 py-2"></td>
                 </tr>
               </tfoot>

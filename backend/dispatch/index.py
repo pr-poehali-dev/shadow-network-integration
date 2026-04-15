@@ -428,9 +428,9 @@ def handler(event: dict, context) -> dict:
                     tickets_sold = int(body["tickets_sold"]) if body.get("tickets_sold") is not None else None
                     cur.execute("""
                         UPDATE schedule_entries
-                        SET revenue_cash = %s,
-                            revenue_cashless = %s,
-                            revenue_total = %s,
+                        SET revenue_cash = COALESCE(%s, revenue_cash),
+                            revenue_cashless = COALESCE(%s, revenue_cashless),
+                            revenue_total = COALESCE(%s, revenue_total),
                             fuel_spent = COALESCE(%s, fuel_spent),
                             fuel_price_override = COALESCE(%s, fuel_price_override),
                             tickets_sold = COALESCE(%s, tickets_sold),
